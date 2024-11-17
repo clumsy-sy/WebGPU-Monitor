@@ -1,0 +1,22 @@
+{
+  "name": "WebGPU API Monitor",
+  "version": "1.0",
+  "manifest_version": 3,
+  "description": "Monitor WebGPU API calls",
+  "permissions": ["scripting", "activeTab", "nativeMessaging", "webNavigation"],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "action": {
+    "default_title": "Replay"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/contentScript.js"],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    }
+  ]
+}
