@@ -5,8 +5,10 @@
   "author": "sy",
   "description": "Monitor WebGPU API calls",
   "icons": {
-    "48": "images/icon48.jpg",
-    "128": "images/icon128.jpg"
+    "16": "images/icon-16.png",
+    "32": "images/icon-32.png",
+    "48": "images/icon-48.png",
+    "128": "images/icon-128.png"
   },
   "permissions": ["scripting", "activeTab", "nativeMessaging", "webNavigation"],
   "background": {
@@ -14,7 +16,6 @@
     "type": "module"
   },
   "action": {
-    "default_icon": "images/icon48.jpg",
     "default_title": "Inject WebGPU API Hooks"
   },
   "content_scripts": [
