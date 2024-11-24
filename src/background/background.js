@@ -2,6 +2,8 @@
 let devToolPort = null; // invalid
 let devToolPanelPort = null;
 
+let messageQueue = [];
+
 // 监听 DevTools 和 DevTools Panel 页面连接
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === "devtools") { // invalid
@@ -16,6 +18,12 @@ chrome.runtime.onConnect.addListener((port) => {
   {
     devToolPanelPort = port;
     console.log("[bg]Connected to DevTools Panel.");
+    if(devToolPanelPort) {
+      for(let i = 0; i < messageQueue.length; i++) {
+        devToolPanelPort.postMessage(messageQueue[i]);
+      }
+      messageQueue = [];
+    }
   }
   else 
   {
@@ -29,18 +37,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const receivedData = JSON.parse(message);
     console.log("[bg]Received data:", receivedData);
     if (receivedData.type === "FROM_HOOKED_API") {
-      console.log("[bg]Message from Content Script:", receivedData);
+      // console.log("[bg]Message from Content Script:", receivedData);
   
-      const sendWhenReady = () => {
-        if (devToolPanelPort) {
-          devToolPanelPort.postMessage(message);
-        } else {
-          console.log("[bg]devToolPanelPort not ready, waiting...");
-          setTimeout(sendWhenReady, 1000); // 等待1秒后再检查
-        }
-      };
-  
-      sendWhenReady(); // 开始检查是否已经准备好发送消息
+      if (devToolPanelPort) {
+        devToolPanelPort.postMessage(message);
+      } else {
+        messageQueue.push(message);
+      }
+
     } else {
       console.log("[bg]Unknown message:", message);
     }

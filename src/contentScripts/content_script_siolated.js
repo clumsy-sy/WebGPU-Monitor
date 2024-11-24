@@ -5,7 +5,7 @@
     // 解析消息
     console.log("[cs-si]Message received from content script:", event.data);
     const receivedData = JSON.parse(event.data);
-    console.log("[cs-si]JSON Message:", receivedData);
+    // console.log("[cs-si]JSON Message:", receivedData);
     // 检查消息是否来自注入脚本
     if (event.source !== window || !receivedData.type) {
       console.log("[cs-si]Message from unknown source");
