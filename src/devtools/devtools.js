@@ -10,17 +10,17 @@ chrome.devtools.panels.create(
 );
 
 // 连接到后台脚本(invalid)
-const port = chrome.runtime.connect({ name: "devtools" });
+// const port = chrome.runtime.connect({ name: "devtools" });
 
 // 监听从后台脚本转发的消息(invalid)
-port.onMessage.addListener((message) => {
-  if (message.type === "TO_DEVTOOLS") {
-    console.log("[devtool]Message from Injected Script (via Background):", message.data);
-  }
-  else
-  {
-    console.log("[devtool]Unknown message:", message);
-  }
-});
+// port.onMessage.addListener((message) => {
+//   if (message.type === "TO_DEVTOOLS") {
+//     console.log("[devtool]Message from Injected Script (via Background):", message.data);
+//   }
+//   else
+//   {
+//     console.log("[devtool]Unknown message:", message);
+//   }
+// });
 
 

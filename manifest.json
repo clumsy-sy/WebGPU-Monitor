@@ -10,7 +10,7 @@
     "48": "src/icons/icon-48.png",
     "128": "src/icons/icon-128.png"
   },
-  "permissions": ["scripting", "activeTab"],
+  "permissions": ["scripting", "activeTab", "tabs"],
   "devtools_page": "src/devtools/devtools.html",
   "background": {
     "service_worker": "src/background/background.js",
