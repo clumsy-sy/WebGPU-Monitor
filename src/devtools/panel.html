@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>WebGPU DevTools</title>
   <script src="panel.js"></script>
 </head>
 <body>
   <h1>WebGPU DevTools Panel</h1>
-  <div id="output"></div>
+  <div id="fpsPrint"></div>
+  <button id="getFrame">截帧</button>
+  <br>
   <canvas id="webgpuCanvas" width="800" height="600"></canvas>
 
   <script src = "render.js"> </script>

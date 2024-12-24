@@ -1,40 +1,73 @@
+/**
+ * @brief 信息类型
+ */
+const MsgType = {
+  WebGPU: "WEBGPU_API",
+  Window: "WINDOW_API",
+  Captures: "CAPTURES_SIGNAL"
+};
+
+
+
 // 与 devtools 通信端口
 let devToolPanelPort = null;
 // 如果有链接未建立，先存入队列中
 let messageQueue = [];
+// 捕获信号
+let captureSignal = false;
 
-function messageHandler(event) {
+/**
+ * @brief 发送消息到 devtool 否则进入缓存队列
+ * @param data 消息
+ */
+function sendMessageToDevTools(data) {
+  if (devToolPanelPort) {
+    devToolPanelPort.postMessage(data);
+  } else {
+    messageQueue.push(data);
+  }
+}
+
+/**
+ * @brief 接收消息
+ * @param message 消息
+ */
+function messageHandler(message) {
   // 解析消息
-  const receivedData = JSON.parse(event.data);
-  // console.log("[cs-si]Message received:{", receivedData, "}");
+  const receivedData = JSON.parse(message.data);
   // 检查消息是否来自注入脚本
-  if (event.source !== window || !receivedData.type) {
+  if (message.source !== window || !receivedData.type) {
     console.log("[cs-si]Message from unknown source");
     return;
   }
 
-  if (receivedData.type === "FROM_HOOKED_API") {
-    console.log("[cs-si]Message from injected script:", receivedData.data);
+  if (receivedData.type === MsgType.WebGPU) {
+    // console.log("[cs-si]Message from injected script:", receivedData);
 
-    // 向 DevTools 发送消息
-    if (devToolPanelPort) {
-      devToolPanelPort.postMessage(event.data);
-    } else {
-      messageQueue.push(event.data);
-    }
-  } else{
+    sendMessageToDevTools(message.data);
+  } else if (receivedData.type === MsgType.Window) {
+    // console.log("[cs-si]Message from injected script:", receivedData);
+    sendMessageToDevTools(message.data);
+  } else if (receivedData.type === MsgType.Captures) {
+    console.log("[cs-si]Message from injected script: capture get", receivedData);
+    captureSignal = false;
+  } else {
     console.log("[cs-si]unknow source message: {", receivedData.data, "}");
   }
 }
 
 (function() {
-  console.log("[cs-si] Add listener ----------")
+  // 监听从注入脚本发送的消息
+  window.addEventListener("message", messageHandler);
+  console.log("[cs-si] Add Inject listener ----------")
 
+  // 链接 devtools
   chrome.runtime.onConnect.addListener((port) => {
     if(port.name === "panel" ) {
       console.log("[cs-si]Connected to panel.");
       devToolPanelPort = port;
       if(devToolPanelPort) {
+        // 将缓存的消息发送给 devtools
         for(let i = 0; i < messageQueue.length; i++) {
           devToolPanelPort.postMessage(messageQueue[i]);
         }
@@ -44,15 +77,19 @@ function messageHandler(event) {
       console.log("[cs-si]Unknown port:", port.name);
     }
 
+    // 接收消息
     port.onMessage.addListener((message) => {
-        console.log("Message received from devtools:", message);
-        // 回复消息
-        port.postMessage({ message: "Hello from tab!" });
+      const receivedData = JSON.parse(message);
+      if (receivedData.type === MsgType.Captures) {
+        console.log("[cs-si]Message from panel:", receivedData.message);
+        captureSignal = true;
+        
+        window.postMessage(JSON.stringify({ type: MsgType.Captures, message: "capture signal", data: captureSignal }), "*");
+
+      } else {
+        console.log("[cs-si]Message from unknown source:", receivedData);
+      }
     });
   });
 
-  console.log("[cs-si] send message to background ----------")
-
-  // 监听从注入脚本发送的消息
-  window.addEventListener("message", messageHandler);
 })();
