@@ -4,7 +4,8 @@
 const MsgType = {
   WebGPU: "WEBGPU_API",
   Window: "WINDOW_API",
-  Captures: "CAPTURES_SIGNAL"
+  Captures_begin: "CAPTURES_BEGIN",
+  Captures_end: "CAPTURES_END",
 };
 
 
@@ -48,11 +49,12 @@ function messageHandler(message) {
   } else if (receivedData.type === MsgType.Window) {
     // console.log("[cs-si]Message from injected script:", receivedData);
     sendMessageToDevTools(message.data);
-  } else if (receivedData.type === MsgType.Captures) {
-    console.log("[cs-si]Message from injected script: capture get", receivedData);
+  } else if (receivedData.type === MsgType.Captures_end) {
+    console.log("[cs-si]Capture finish.");
     captureSignal = false;
+    sendMessageToDevTools(message.data);
   } else {
-    console.log("[cs-si]unknow source message: {", receivedData.data, "}");
+    return;
   }
 }
 
@@ -80,11 +82,11 @@ function messageHandler(message) {
     // 接收消息
     port.onMessage.addListener((message) => {
       const receivedData = JSON.parse(message);
-      if (receivedData.type === MsgType.Captures) {
+      if (receivedData.type === MsgType.Captures_begin) {
         console.log("[cs-si]Message from panel:", receivedData.message);
         captureSignal = true;
         
-        window.postMessage(JSON.stringify({ type: MsgType.Captures, message: "capture signal", data: captureSignal }), "*");
+        window.postMessage(JSON.stringify({ type: MsgType.Captures_begin, message: "capture signal", data: {signal: captureSignal} }), "*");
 
       } else {
         console.log("[cs-si]Message from unknown source:", receivedData);

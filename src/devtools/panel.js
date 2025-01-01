@@ -4,7 +4,8 @@
 const MsgType = {
   WebGPU: "WEBGPU_API",
   Window: "WINDOW_API",
-  Captures: "CAPTURES_SIGNAL"
+  Captures_begin: "CAPTURES_BEGIN",
+  Captures_end: "CAPTURES_END",
 };
 
 
@@ -25,6 +26,8 @@ port.onMessage.addListener((message) => {
           console.log("[panel] frame", receivedData.data.frameCnt, "deltaTime:", receivedData.data.deltaTime, "ms, FPS:", receivedData.data.fps);
           fps.textContent = `当前帧率: ${receivedData.data.fps} FPS (${receivedData.data.deltaTime} ms / frame) `;
       }
+  } else if (receivedData.type === MsgType.Captures_end) {
+      console.log("[panel] Message received in panel.js:", receivedData);
   } else {
       console.log("Message received in panel.js:", receivedData);
   }
@@ -37,7 +40,7 @@ document.addEventListener("DOMContentLoaded", function() {
   if (captureButton) {
       captureButton.addEventListener("click", function() {
           console.log("[panel] send message to content script");
-          port.postMessage(JSON.stringify({ type: MsgType.Captures, message: "get current frame", data: "" }));
+          port.postMessage(JSON.stringify({ type: MsgType.Captures_begin, message: "get current frame", data: "strat" }));
       });
   } else {
       console.error("Element with id 'getFrame' not found.");
