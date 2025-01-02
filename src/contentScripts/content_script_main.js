@@ -17,13 +17,11 @@ const MsgType = {
  * @param {any} args 消息内容
  */
 function sendMessage(type, label, args) {
-  const message = { 
+  window.postMessage(JSON.stringify({ 
     type: type, 
     message: label,
     data: args
-  };
-  const jsonString = JSON.stringify(message);
-  window.postMessage(jsonString, "*");
+  }), "*");
 }
 
 
@@ -361,7 +359,7 @@ function hookRequestAnimationFrame() {
     if (captureFrameStrat === true) {
       console.log("[main] Capture next frame Finish!");
       // sendMessage(MsgType.Captures, "Capture next frame finish!", "finish");
-      window.postMessage(JSON.stringify({ type: MsgType.Captures_end, message: "Capture next frame finish!", data: {signal: false} }), "*");
+      sendMessage( MsgType.Captures_end, "Capture next frame finish!", {signal: false} );
       captureFrameStrat = false;
       captureSignal = false;
     }
@@ -383,13 +381,21 @@ function hookRequestAnimationFrame() {
  * @brief 接收来自 content script 的消息
  */
 function messageHandler(message) {
-  const receivedData = JSON.parse(message.data);
+  let receivedData;
+  try {
+    receivedData = JSON.parse(message.data);
+  } catch (error) {
+    console.error("[main] Error parsing message:", error);
+    console.log("[main] Error parsing message Origin:", message);
+    return;
+  }
 
-  if (receivedData.type === MsgType.Captures_begin) {
+  if (receivedData && receivedData.type === MsgType.Captures_begin) {
       captureSignal = true;
   } else {
     return;
   }
+
 }
 
 (function() {

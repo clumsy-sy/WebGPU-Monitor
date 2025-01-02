@@ -17,7 +17,7 @@ let port = chrome.tabs.connect(tabId, { name: "panel" });
 
 // 接收来自 content_script 的消息
 port.onMessage.addListener((message) => {
-  // 将消息解析
+  //   console.log("[panel] Message received in panel.js:", message);
   const receivedData = JSON.parse(message);
   const fps = document.getElementById("fpsPrint");
 
@@ -29,7 +29,7 @@ port.onMessage.addListener((message) => {
   } else if (receivedData.type === MsgType.Captures_end) {
       console.log("[panel] Message received in panel.js:", receivedData);
   } else {
-      console.log("Message received in panel.js:", receivedData);
+      console.log("[panel] Message received in panel.js:", receivedData);
   }
 });
 

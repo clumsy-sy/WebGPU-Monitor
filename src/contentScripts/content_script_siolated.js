@@ -34,6 +34,9 @@ function sendMessageToDevTools(data) {
  * @param message 消息
  */
 function messageHandler(message) {
+  if(!message.data) {
+    return;
+  }
   // 解析消息
   const receivedData = JSON.parse(message.data);
   // 检查消息是否来自注入脚本
@@ -43,11 +46,8 @@ function messageHandler(message) {
   }
 
   if (receivedData.type === MsgType.WebGPU) {
-    // console.log("[cs-si]Message from injected script:", receivedData);
-
     sendMessageToDevTools(message.data);
   } else if (receivedData.type === MsgType.Window) {
-    // console.log("[cs-si]Message from injected script:", receivedData);
     sendMessageToDevTools(message.data);
   } else if (receivedData.type === MsgType.Captures_end) {
     console.log("[cs-si]Capture finish.");
