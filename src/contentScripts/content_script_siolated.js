@@ -38,7 +38,13 @@ function messageHandler(message) {
     return;
   }
   // 解析消息
-  const receivedData = JSON.parse(message.data);
+
+  let receivedData = null;
+  if (typeof message.data === 'string') {
+    receivedData = JSON.parse(message.data);
+  } else {
+    receivedData = message.data;
+  }
   // 检查消息是否来自注入脚本
   if (message.source !== window || !receivedData.type) {
     console.log("[cs-si]Message from unknown source");
@@ -83,10 +89,9 @@ function messageHandler(message) {
     port.onMessage.addListener((message) => {
       const receivedData = JSON.parse(message);
       if (receivedData.type === MsgType.Captures_begin) {
-        console.log("[cs-si]Message from panel:", receivedData.message);
         captureSignal = true;
         
-        window.postMessage(JSON.stringify({ type: MsgType.Captures_begin, message: "capture signal", data: {signal: captureSignal} }), "*");
+        window.postMessage({ type: MsgType.Captures_begin, message: "capture signal", data: {signal: captureSignal} }, "*");
 
       } else {
         console.log("[cs-si]Message from unknown source:", receivedData);

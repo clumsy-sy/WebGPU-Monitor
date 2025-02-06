@@ -19,10 +19,14 @@
   "action": {
     "default_title": "Inject WebGPU API Hooks"
   },
+  "web_accessible_resources": [{
+    "resources": ["modules/*.js"],
+    "matches": ["<all_urls>"]
+  }],
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["src/contentScripts/content_script_main.js"],
+      "js": ["dist/content_script_main.bundle.js"],
       "run_at": "document_start",
       "all_frames": true,
       "world": "MAIN"
