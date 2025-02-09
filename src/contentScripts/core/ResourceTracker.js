@@ -4,17 +4,25 @@
  */
 export class ResourceTracker {
 
-  resourceMap = new WeakMap();
+  resourceMap = new Map();
   resourceId = 0;
 
   /**
    * @brief 生成唯一 ID，跟踪资源。
    * @returns 
    */
-  track(resource, type, descriptor, prefix = 'res') {
+  track(resource, descriptor, type = 'res') {
     // 使用传入的 prefix 生成资源唯一标识
-    const id = `${prefix}_${crypto.randomUUID()}`;
-    this.resourceMap.set(resource, { id, type, descriptor });
+    const id = `${type}_${crypto.randomUUID()}`;
+    const timestamp = performance.now();
+    switch (type) {
+      case 'pipeline':
+        descriptor.vertex.module = this.getResourceInfo(descriptor.vertex.module)?.id;
+        descriptor.fragment.module = this.getResourceInfo(descriptor.fragment.module)?.id;
+        break;
+    }
+
+    this.resourceMap.set(resource, { id:id, time:timestamp, msg: {descriptor} });
     return id;
   }
 
@@ -24,6 +32,9 @@ export class ResourceTracker {
 
   getAllResources() {
     return Array.from(this.resourceMap.entries());
+  }
+  getAllResourcesValues() {
+    return Array.from(this.resourceMap.values());
   }
   untrack(resource) {
     this.resourceMap.delete(resource);

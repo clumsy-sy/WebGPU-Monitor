@@ -4,6 +4,10 @@ import { CommandRecorder } from "./CommandRecorder";
  * @class Tracker
  */
 export class Tracker{
+  static captureState = {
+    msg: false,
+    active: false,
+  }
   /*
     fixme
     1. adapter & device 目前只支持 1 个
@@ -17,14 +21,21 @@ export class Tracker{
   }
 
   currentFrame = 0;
-  timeStart = 0;
+  timeStart = 0.0;
+  timeEnd = 0.0;
 
   constructor(frameid) { 
     this.currentFrame = frameid;
+    this.timeStart = performance.now();
+    this.timeEnd = 0;
   }
 
-  setTime(time) {
+  setTimeStart(time) {
     this.timeStart = time;
+  }
+
+  setTimeEnd(time) {
+    this.timeEnd = time;
   }
 
 
@@ -44,8 +55,9 @@ export class Tracker{
     this.metedata.deviceDescriptor = GPUDeviceDescriptor;
   }
 
-  static trackResources(resource, type, descriptor, prefix = 'res') {
-    return this.metedata.resource.track(resource, type, descriptor, prefix);
+  static trackResources(resource, type, descriptor) {
+    console.log('trackResources', type, "   |   " ,descriptor);
+    return this.metedata.resource.track(resource, descriptor, type);
   }
   static getResourceInfo(resource) {
     return this.metedata.resource.getResourceInfo(resource);
@@ -59,13 +71,30 @@ export class Tracker{
     return this.metedata.resource.getAllResources();
   }
 
+  static getAllResourcesValues() {
+    return this.metedata.resource.getAllResourcesValues();
+  }
+
   static trackCommand(type, args) {
-    this.metedata.command.recordCommand(type, args);
+    if(this.captureState.active) {
+      this.metedata.command.recordCommand(type, args);
+    }
+  }
+
+  static getAllCommands() {
+    return this.metedata.command.getAllCommands();
   }
 
 
   outputFrame() {
-
+    let frame = {
+      id: this.currentFrame,
+      timeStart: this.timeStart,
+      timeEnd: this.timeStart,
+      resources: Tracker.getAllResourcesValues(),
+      commands: Tracker.getAllCommands(),
+    }
+    return JSON.stringify(frame, null, 2);
   }
 
 }

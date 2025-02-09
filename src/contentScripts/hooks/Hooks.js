@@ -1,14 +1,8 @@
-import { ResourceTracker } from "../core/ResourceTracker.js";
-import { CommandRecorder } from "../core/CommandRecorder.js";
 import { seedAndLogger } from "../utils/seedAndLogger.js";
 import { MsgType } from "../utils/Global.js";
 import { Tracker } from "../core/Tracker.js";
 
 
-export const captureState = {
-  msg: false,
-  active: false,
-};
 
 let frameCnt = 0;
 let lastFrameTime = performance.now();
@@ -32,23 +26,27 @@ function installFrameHooks() {
       frameCnt += 1;
       lastFrameTime = currentFrameTime;
 
-      if (captureState.active) {
+      if (Tracker.captureState.active) {
         console.log("[main] Capture next frame Finish!");
         // sendMessage(MsgType.Captures, "Capture next frame finish!", "finish");
         seedAndLogger.sendMessage( MsgType.Captures_end, "Capture next frame finish!", {signal: false} );
-        captureState.msg = false;
-        captureState.active = false;
-        console.log("[main] Tracker")
-        console.log(Tracker);
+        Tracker.captureState.msg = false;
+        Tracker.captureState.active = false;
+        track.setTimeEnd(performance.now);
+        console.log("[main] Tracker ----------------------------");
+        console.log(track);
         console.log(Tracker.metedata);
+        console.log("[main] Tracker ----------------------------");
+        console.log(track.outputFrame());
+        console.log("[main] FRAME ----------------------------");
       }
 
       
-      if (captureState.msg) {
-        captureState.active = true;
+      if (Tracker.captureState.msg) {
+        Tracker.captureState.active = true;
         console.log("[main] Capture next frame: ", frameCnt);
         track = new Tracker(frameCnt);
-        track.setTime(performance.now);
+        track.setTimeStart(performance.now);
       }
       
       const result = callback(timestamp);
@@ -60,6 +58,7 @@ function installFrameHooks() {
 function hookCanvas(){
   const originalCanvasConf = GPUCanvasContext.configure;
   GPUCanvasContext.configure = function (configuration) {
+    console.log("[hookCanvas] GPUCanvasContext.configure: ", configuration)
     Tracker.trackCanvasConfiguration(configuration);
     return originalCanvasConf.call(this, configuration);
   };
@@ -91,9 +90,9 @@ export function hookBuffers() {
   const originalCreateBuffer = GPUDevice.prototype.createBuffer;
   
   GPUDevice.prototype.createBuffer = function(descriptor) {
-    const buffer = originalCreateBuffer.call(this, descriptor);
-    const id = Tracker.trackResources(buffer, 'buffer', descriptor, 'buffer');
     console.log('createBuffer', id, descriptor);
+    const buffer = originalCreateBuffer.call(this, descriptor);
+    const id = Tracker.trackResources(buffer, 'buffer', descriptor);
     
     // 劫持写入操作
     const originalWrite = buffer.write;
@@ -106,15 +105,24 @@ export function hookBuffers() {
   };
 }
 
+export function hookShaders() {
+  // hook createShaderModule()
+  const originalCreateShaderModule = GPUDevice.prototype.createShaderModule;
+
+  GPUDevice.prototype.createShaderModule = function(descriptor) {
+    console.log(descriptor);
+    const shaderModule = originalCreateShaderModule.call(this, descriptor);
+    Tracker.trackResources(shaderModule, 'shaderModule', descriptor);
+    return shaderModule;
+  };
+}
+
 export function hookPipelines() {
   const originalCreatePipeline = GPUDevice.prototype.createRenderPipeline;
   
   GPUDevice.prototype.createRenderPipeline = function(descriptor) {
     const pipeline = originalCreatePipeline.call(this, descriptor);
-    Tracker.trackResources(pipeline, 'pipeline', {
-      vertex: descriptor.vertex.module?.label,
-      fragment: descriptor.fragment?.module?.label
-    }, 'pipeline');
+    Tracker.trackResources(pipeline, 'pipeline', descriptor);
     return pipeline;
   };
 }
@@ -148,6 +156,13 @@ export function hookInit() {
   hookCanvas();
   hookAdapter();
   hookBuffers();
+  hookShaders();
   hookPipelines();
   hookRenderPass();
+  // hookComputePipelines();
+  // hookTextures();
+  // hookCopyCommands();
+  // hookBindGroups();
+  // hookSamplers();
+  // hookQueueSubmits();
 }

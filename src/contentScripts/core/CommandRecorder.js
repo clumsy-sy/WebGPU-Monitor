@@ -23,9 +23,13 @@ export class CommandRecorder {
   recordCommand(type, args) {
     this.currentCommandBuffer.push({
       type,
-      args: args,
+      args: {args},
       timestamp: performance.now()
     });
+  }
+
+  getAllCommands() {
+    return this.currentCommandBuffer;
   }
 
   // commitCommandBuffer() {
