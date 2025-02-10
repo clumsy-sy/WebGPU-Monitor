@@ -1,14 +1,4 @@
-/**
- * @brief 信息类型
- */
-const MsgType = {
-  WebGPU: "WEBGPU_API",
-  Window: "WINDOW_API",
-  Captures_begin: "CAPTURES_BEGIN",
-  Captures_end: "CAPTURES_END",
-};
-
-
+import { MsgType } from './utils/Global';
 
 // 与 devtools 通信端口
 let devToolPanelPort = null;
@@ -58,6 +48,8 @@ function messageHandler(message) {
   } else if (receivedData.type === MsgType.Captures_end) {
     console.log("[cs-si]Capture finish.");
     captureSignal = false;
+    sendMessageToDevTools(message.data);
+  } else if (receivedData.type === MsgType.Frame){
     sendMessageToDevTools(message.data);
   } else {
     return;

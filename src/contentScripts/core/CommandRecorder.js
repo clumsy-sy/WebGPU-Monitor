@@ -1,10 +1,44 @@
 import { Serializer } from "../utils/Serializer";
 
+class CommandBufferRecorder {
+  commandBufferID = 0;
+  commands = [];
+  constructor() {
+    this.commands = [];
+  }
+  recordCommand(type, args) {
+    this.commands.push({
+      type,
+      args: {args},
+      timestamp: performance.now()
+    });
+  }
+
+  setCommandBufferID(id) {
+    this.commandBufferID = id;
+  }
+
+  getCommandBufferID() {
+    return this.commandBufferID;
+  }
+
+  getAllCommands() {
+    return this.commands;
+  }
+
+  destory() {
+    this.commands = [];
+    this.commands = null;
+  }
+}
 
 export class CommandRecorder {
+
   
   commandQueue = [];
-  currentCommandBuffer = [];
+  currentCommandBuffer = 0;
+  commandBuffer = new Map();
+
 
   constructor() {
     this.startCommandBuffer();
@@ -14,26 +48,50 @@ export class CommandRecorder {
    * @brief 开始记录一帧
    */
   startCommandBuffer() {
-    this.currentCommandBuffer = [];
+    this.commandQueue = [];
   }
 
   /**
    * @brief 记录一帧的命令
    */
   recordCommand(type, args) {
-    this.currentCommandBuffer.push({
+    this.commandQueue.push({
       type,
-      args: {args},
+      ...args,
       timestamp: performance.now()
     });
   }
 
-  getAllCommands() {
-    return this.currentCommandBuffer;
+  recordCommandBuffer(type, args) {
+    if(this.currentCommandBuffer == 0 && type == "beginRenderPass") {
+      this.currentCommandBuffer = this.commandQueue.length;
+      let commandbuffer = new CommandBufferRecorder();
+      commandbuffer.recordCommand(type, args);
+      this.commandQueue.push(commandbuffer);
+
+    } else{
+      this.commandQueue[this.currentCommandBuffer].recordCommand(type, args);
+    }
+  }
+  recordCommandBufferID(id) {
+    this.commandQueue[this.currentCommandBuffer].setCommandBufferID(id);
+    this.currentCommandBuffer = 0;
   }
 
-  // commitCommandBuffer() {
-  //   commandQueue.push(currentCommandBuffer);
-  //   currentCommandBuffer = [];
-  // }
+  bindCommandBuffer(cb) {
+    this.commandBuffer.set(cb, {id : this.currentCommandBuffer});
+  }
+
+  getCommandBufferID(id) {
+    return this.commandBuffer.get(id).id;
+  }
+
+  getAllCommands() {
+    return this.commandQueue;
+  }
+
+  destory() {
+    this.commandQueue = [];
+    this.commandQueue = null;
+  }
 }

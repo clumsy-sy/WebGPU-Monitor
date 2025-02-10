@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020", // 编译目标
+    "module": "ESNext", // 模块系统
+    "strict": true, // 启用严格模式
+    "esModuleInterop": true, // 支持 CommonJS 和 ES 模块的互操作
+    "skipLibCheck": true, // 跳过库文件的类型检查
+    "lib": ["DOM", "ES2020"],
+    "forceConsistentCasingInFileNames": true, // 强制文件名大小写一致
+    "moduleResolution": "node",
+    "noEmitOnError": true,
+    "outDir": "./dist", // 输出目录
+    "rootDir": "./src" // 根目录
+  },
+  "include": ["src/devtools/panel.ts", "src/devtools/devtools.ts"], // 编译
+  "exclude": ["node_modules"] // 排除 node_modules
+}

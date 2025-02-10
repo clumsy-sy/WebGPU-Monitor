@@ -41,6 +41,19 @@ export class Tracker{
 
   static reset() {
     // 重置 metadata
+    this.metedata.resource.destory();
+    this.metedata.command.destory();
+
+    this.metedata = {
+      CanvasConfiguration: {},
+      AdapterOptions: {},
+      deviceDescriptor: {},
+      resource: new ResourceTracker(),
+      command: new CommandRecorder(),
+    }
+    this.currentFrame = 0;
+    this.timeStart = 0.0;
+    this.timeEnd = 0.0;
   }
 
 
@@ -56,8 +69,13 @@ export class Tracker{
   }
 
   static trackResources(resource, type, descriptor) {
-    console.log('trackResources', type, "   |   " ,descriptor);
     return this.metedata.resource.track(resource, descriptor, type);
+  }
+
+  static trackFrameResources(resource, type, descriptor) {
+    if(this.captureState.active) {
+      return this.metedata.resource.track(resource, descriptor, type);
+    }
   }
   static getResourceInfo(resource) {
     return this.metedata.resource.getResourceInfo(resource);
@@ -76,6 +94,27 @@ export class Tracker{
   }
 
   static trackCommand(type, args) {
+    this.metedata.command.recordCommand(type, args);
+  }
+
+  static trackCommandBuffer(type, args){
+    this.metedata.command.recordCommandBuffer(type, args);
+  }
+
+  static recordCommandBufferID(cb) {
+    const id = this.metedata.command.getCommandBufferID(cb)
+    this.metedata.command.recordCommandBufferID(id);
+  }
+
+  static recordBindCommandBuffer(cb) {
+    this.metedata.command.bindCommandBuffer(cb);
+  }
+
+  static getCommandBufferID(cb) {
+    return this.metedata.command.getCommandBufferID(cb);
+  }
+
+  static trackFrameCommand(type, args) {
     if(this.captureState.active) {
       this.metedata.command.recordCommand(type, args);
     }
@@ -91,10 +130,13 @@ export class Tracker{
       id: this.currentFrame,
       timeStart: this.timeStart,
       timeEnd: this.timeStart,
+      CanvasConfiguration: Tracker.metedata.CanvasConfiguration,
+      AdapterOptions: Tracker.metedata.AdapterOptions,
+      deviceDescriptor: Tracker.metedata.deviceDescriptor,
       resources: Tracker.getAllResourcesValues(),
       commands: Tracker.getAllCommands(),
     }
-    return JSON.stringify(frame, null, 2);
+    return frame;
   }
 
 }

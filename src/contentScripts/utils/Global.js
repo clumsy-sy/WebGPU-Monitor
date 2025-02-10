@@ -6,6 +6,7 @@ export const MsgType = {
   Window: "WINDOW_API",
   Captures_begin: "CAPTURES_BEGIN",
   Captures_end: "CAPTURES_END",
+  Frame: "FRAME_JSON",
 };
 
 export const Utils = {

@@ -11,7 +11,7 @@ export class ResourceTracker {
    * @brief 生成唯一 ID，跟踪资源。
    * @returns 
    */
-  track(resource, descriptor, type = 'res') {
+  track(resource, descriptor, type = 'res', subtype = 'default') {
     // 使用传入的 prefix 生成资源唯一标识
     const id = `${type}_${crypto.randomUUID()}`;
     const timestamp = performance.now();
@@ -22,7 +22,7 @@ export class ResourceTracker {
         break;
     }
 
-    this.resourceMap.set(resource, { id:id, time:timestamp, msg: {descriptor} });
+    this.resourceMap.set(resource, { id:id, time:timestamp, descriptor });
     return id;
   }
 
@@ -39,4 +39,10 @@ export class ResourceTracker {
   untrack(resource) {
     this.resourceMap.delete(resource);
   }
+
+  destory() {
+    this.resourceMap.clear();
+    this.resourceMap = null;
+  }
+
 }
