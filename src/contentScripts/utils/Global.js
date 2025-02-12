@@ -10,6 +10,11 @@ export const MsgType = {
 };
 
 export const Utils = {
+  generateUniqueNumber: () =>  {
+    const timestamp = Date.now(); // 获取当前时间戳
+    const random = Math.floor(Math.random() * 1000000); // 生成随机数
+    return parseInt(`${timestamp}${random}`, 10); // 拼接并转换为数字
+  },
   getResourceType: (obj) => {
     switch (true) {
       case obj instanceof GPUAdapter: return 'adapters';

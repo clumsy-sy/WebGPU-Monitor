@@ -1,3 +1,5 @@
+import { WebGPUReproducer } from "./core/Replayer";
+
 /**
  * @brief 信息类型
  */
@@ -17,14 +19,16 @@ console.log("[panel] get current TabId:", tabId);
 // 创建一个端口，用于与 content_script 进行通信
 const port: chrome.runtime.Port = chrome.tabs.connect(tabId, { name: "panel" });
 
+interface fpsType {
+  frameCnt: number;
+  deltaTime: number;
+  fps: number;
+}
+
 // 定义接收消息的数据结构
 interface ReceivedMessage {
   type: string;
-  data?: {
-    frameCnt?: number;
-    deltaTime?: number;
-    fps?: number;
-  };
+  data: fpsType | string;
 }
 
 // 接收来自 content_script 的消息
@@ -33,15 +37,7 @@ port.onMessage.addListener((message: string) => {
   const fps = document.getElementById("fpsPrint");
 
   if (receivedData.type === MsgType.Window) {
-    if (receivedData.data !== undefined && receivedData.data !== null) {
-      // console.log(
-      //   "[panel] frame",
-      //   receivedData.data.frameCnt,
-      //   "deltaTime:",
-      //   receivedData.data.deltaTime,
-      //   "ms, FPS:",
-      //   receivedData.data.fps
-      // );
+    if (receivedData.data !== undefined && receivedData.data !== null && typeof receivedData.data === "object") {
       if (fps) {
         fps.textContent = `当前帧率: ${receivedData.data.fps} FPS (${receivedData.data.deltaTime} ms / frame) `;
       }
@@ -50,6 +46,16 @@ port.onMessage.addListener((message: string) => {
     console.log("[panel] Message received in panel.js:", receivedData);
   } else if (receivedData.type === MsgType.Frame) {
     console.log("[panel] Frame json:", receivedData.data);
+    const replayCanvas = document.getElementById('replay') as HTMLCanvasElement | null;
+    if(replayCanvas && typeof receivedData.data === "string") {
+      const replayer = new WebGPUReproducer(replayCanvas, receivedData.data);
+      // (async () => {
+      //   await replayer.replayFrame();
+      // });
+      // console.log("[panel] replayer:", replayer);
+      // console.log(`[panel] canvas: [${replayCanvas?.width}, ${replayCanvas?.height}]`);
+    }
+
   } else {
     console.log("[panel] Message received in panel.js:", receivedData);
   }

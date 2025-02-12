@@ -9,7 +9,7 @@ class CommandBufferRecorder {
   recordCommand(type, args) {
     this.commands.push({
       type,
-      args: {args},
+      args,
       timestamp: performance.now()
     });
   }
@@ -57,7 +57,7 @@ export class CommandRecorder {
   recordCommand(type, args) {
     this.commandQueue.push({
       type,
-      ...args,
+      args,
       timestamp: performance.now()
     });
   }

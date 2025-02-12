@@ -23,6 +23,8 @@ export class Tracker{
   currentFrame = 0;
   timeStart = 0.0;
   timeEnd = 0.0;
+  CanvasWidth = 0;
+  CanvasHeight = 0;
 
   constructor(frameid) { 
     this.currentFrame = frameid;
@@ -36,6 +38,11 @@ export class Tracker{
 
   setTimeEnd(time) {
     this.timeEnd = time;
+  }
+
+  setCanvasSize(width, height) {
+    this.CanvasWidth = width;
+    this.CanvasHeight = height;
   }
 
 
@@ -54,6 +61,8 @@ export class Tracker{
     this.currentFrame = 0;
     this.timeStart = 0.0;
     this.timeEnd = 0.0;
+    this.CanvasWidth = 0;
+    this.CanvasHeight = 0;
   }
 
 
@@ -128,6 +137,8 @@ export class Tracker{
   outputFrame() {
     let frame = {
       id: this.currentFrame,
+      canvasWidth: this.CanvasWidth,
+      canvasHeight: this.CanvasHeight,
       timeStart: this.timeStart,
       timeEnd: this.timeStart,
       CanvasConfiguration: Tracker.metedata.CanvasConfiguration,

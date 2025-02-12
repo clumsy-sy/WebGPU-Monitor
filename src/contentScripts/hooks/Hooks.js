@@ -34,10 +34,15 @@ function installFrameHooks() {
         track.setTimeEnd(performance.now);
         // console.log("[main] Tracker ----------------------------");
         // console.log(track);
-        // console.log(Tracker.metedata);
+        // console.log(Tracker.metedata);    
         console.log("[main] Tracker ----------------------------");
-        console.log(JSON.stringify(track.outputFrame(), null, 2));
-        seedAndLogger.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(track.outputFrame(track.outputFrame())));
+        console.log(JSON.stringify(track.outputFrame(), (key, value) => {
+          if (key === 'data' && Array.isArray(value)) {
+            return JSON.stringify(value); // 将数组压缩为一行
+          }
+          return value;
+        }, 2));
+        seedAndLogger.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(track.outputFrame()));
         console.log("[main] FRAME ----------------------------");
         Tracker.reset();
       }
@@ -57,10 +62,10 @@ function installFrameHooks() {
 }
 
 function hookCanvasContext(){
-  const originalCanvasConf = GPUCanvasContext.configure;
-  GPUCanvasContext.configure = function (configuration) {
-    console.log("[hookCanvas] GPUCanvasContext.configure: ", configuration)
-    Tracker.trackCanvasConfiguration({configuration});
+  const originalCanvasConf = GPUCanvasContext.prototype.configure;
+  GPUCanvasContext.prototype.configure = function (configuration) {
+    // fixme device is a reference
+    Tracker.trackCanvasConfiguration(configuration);
     return originalCanvasConf.call(this, configuration);
   };
 
@@ -71,6 +76,7 @@ function hookCanvasContext(){
     
     // 标记为 Canvas 交换链纹理
     if(Tracker.captureState.active) {
+      track.setCanvasSize(this.canvas.width, this.canvas.height);
       Tracker.trackResources(texture, 'canvasTexture', {
         canvas: this.canvas,
         format: this.canvasFormat,
@@ -110,45 +116,39 @@ export function hookBuffers() {
   GPUDevice.prototype.createBuffer = function(descriptor) {
     const buffer = originalCreateBuffer.call(this, descriptor);
     const id = Tracker.trackResources(buffer, 'buffer', descriptor);
-    console.log('createBuffer', id, descriptor);
 
     // 
-    // if (descriptor.mappedAtCreation) {
-    //   const originalGetMappedRange = buffer.getMappedRange;
-    //   let mappedRange = null;
+    if (descriptor.mappedAtCreation) {
+      const originalGetMappedRange = buffer.getMappedRange;
+      let mappedRange = null;
       
-    //   buffer.getMappedRange = function(...args) {
-    //     mappedRange = originalGetMappedRange.apply(this, args);
-    //     mappedBufferData.set(buffer, {
-    //       arrayBuffer: mappedRange,
-    //       byteLength: descriptor.size
-    //     });
-    //     return mappedRange;
-    //   };
+      buffer.getMappedRange = function(...args) {
+        mappedRange = originalGetMappedRange.apply(this, args);
+        console.log("[mappedRange] = ", mappedRange);
+        Tracker.trackResources(buffer, 'bufferDataMap', { buffer: buffer, arrayBuffer: mappedRange });
+        return mappedRange;
+      };
 
-    //   // 劫持 unmap 捕获初始数据
-    //   const originalUnmap = buffer.unmap;
-    //   buffer.unmap = function() {
-    //     if (mappedRange) {
-    //       const data = new Uint8Array(mappedRange);
-    //       Tracker.updateBufferData(buffer, data);
-    //     }
-    //     mappedBufferData.delete(buffer);
-    //     return originalUnmap.call(this);
-    //   };
-    // } else {
-
-    // }
+      // 劫持 unmap 捕获初始数据
+      const originalUnmap = buffer.unmap;
+      buffer.unmap = function() {
+        if (mappedRange) {
+          const data = new Float32Array(mappedRange);
+          console.log('arrayBuffer', mappedRange);
+          console.log('data', data);
+          Tracker.trackResources(mappedRange, 'bufferData', {
+            arrayBuffer: mappedRange,
+            data: data
+          });
+        }
+        return originalUnmap.call(this);
+      };
+    } 
     
-    // 劫持写入操作
-    const originalWrite = buffer.write;
-    buffer.write = function(data, offset = 0) {
-      Tracker.trackCommand('writeBuffer', { id, data, offset });
-      return originalWrite.call(this, data, offset);
-    };
     
     return buffer;
   };
+
 }
 
 export function hookShaders() {
@@ -156,10 +156,20 @@ export function hookShaders() {
   const originalCreateShaderModule = GPUDevice.prototype.createShaderModule;
 
   GPUDevice.prototype.createShaderModule = function(descriptor) {
-    console.log(descriptor);
     const shaderModule = originalCreateShaderModule.call(this, descriptor);
     Tracker.trackResources(shaderModule, 'shaderModule', descriptor);
     return shaderModule;
+  };
+}
+
+export function hookTextures() {
+  const originalCreateTexture = GPUDevice.prototype.createTexture;
+  
+  GPUDevice.prototype.createTexture = function(descriptor) {
+    const texture = originalCreateTexture.call(this, descriptor);
+    Tracker.trackResources(texture, 'texture', descriptor);
+
+    return texture;
   };
 }
 
@@ -186,14 +196,61 @@ export function hookTextureViews() {
   };
 }
 
+function hookBindGroups() {
+  const originalCreateBindGroup = GPUDevice.prototype.createBindGroup;
+
+  GPUDevice.prototype.createBindGroup = function(descriptor) {
+    const bindGroup = originalCreateBindGroup.call(this, descriptor);
+    Tracker.trackResources(bindGroup, 'bindGroup', descriptor);
+    
+    return bindGroup;
+  };
+}
+
 export function hookPipelines() {
   const originalCreatePipeline = GPUDevice.prototype.createRenderPipeline;
   
   GPUDevice.prototype.createRenderPipeline = function(descriptor) {
     const pipeline = originalCreatePipeline.call(this, descriptor);
     Tracker.trackResources(pipeline, 'pipeline', descriptor);
+    if(pipeline) {
+      const originalGetBindGroupLayout = pipeline.getBindGroupLayout;
+      pipeline.getBindGroupLayout = function(index) {
+        const bindGroupLayout = originalGetBindGroupLayout.call(this, index);
+        const pipelineID = Tracker.getResourceInfo(pipeline)?.id;
+
+        Tracker.trackResources(bindGroupLayout, 'bindGroupLayout', {
+          index,
+          pipelineID
+        });
+        return bindGroupLayout;
+      };
+    }
     return pipeline;
   };
+
+
+  const originalCreateComputePipeline = GPUDevice.prototype.createComputePipeline;
+  
+  GPUDevice.prototype.createComputePipeline = function(descriptor) {
+    const pipeline = originalCreateComputePipeline.call(this, descriptor);
+    Tracker.trackResources(pipeline, 'computePipeline', descriptor);
+    if(pipeline) {
+      const originalGetBindGroupLayout = pipeline.getBindGroupLayout;
+      pipeline.getBindGroupLayout = function(index) {
+        const bindGroupLayout = originalGetBindGroupLayout.call(this, index);
+        const pipelineID = Tracker.getResourceInfo(pipeline)?.id;
+
+        Tracker.trackResources(bindGroupLayout, 'bindGroupLayout', {
+          index,
+          pipelineID
+        });
+        return bindGroupLayout;
+      };
+    }
+    return pipeline;
+  };
+
 }
 
 export function hookRenderPass() {
@@ -230,6 +287,18 @@ export function hookRenderPass() {
         });
       });
 
+      ['setBindGroup', 'setVertexBuffer'].forEach(method => {
+        pass[method] = new Proxy(pass[method], {
+          apply(target, thisArg, args) {
+            const res = Reflect.apply(target, thisArg, args)
+            const id = Tracker.getResourceInfo(args[1])?.id;
+            args[1] = id;
+            Tracker.trackCommandBuffer(method, args);
+            return res;
+          }
+        });
+      });
+
       // 直接使用参数的 command
       ['draw', 'drawIndexed', 'end'].forEach(method => {
         pass[method] = new Proxy(pass[method], {
@@ -250,7 +319,7 @@ export function hookRenderPass() {
   GPUCommandEncoder.prototype.finish = function (descriptor) {
     const commandBuffer = originalFinish.call(this, descriptor);
     if(Tracker.captureState.active) {
-      Tracker.trackCommandBuffer('finish', descriptor);
+      Tracker.trackCommandBuffer('finish', {args: descriptor});
       Tracker.recordBindCommandBuffer(commandBuffer);
       Tracker.recordCommandBufferID(commandBuffer);
     }
@@ -260,7 +329,7 @@ export function hookRenderPass() {
 
 }
 
-export function hookQueueSubmits() {
+export function hookQueueCommands() {
 
   const originalSubmit = GPUQueue.prototype.submit;
 
@@ -276,6 +345,24 @@ export function hookQueueSubmits() {
     // 调用原始方法
     return originalSubmit.call(this, commandBuffers);
   };
+
+  const originalWriteBuffer = GPUQueue.prototype.writeBuffer;
+
+  GPUQueue.prototype.writeBuffer = function(buffer, offset, data, dataOffset, size) {
+    if(Tracker.captureState.active) {
+      console.log('writeBuffer', buffer, offset, data, dataOffset, size);
+      // fixme data maybe is GPUBuffer
+      Tracker.trackCommand('writeBuffer', {
+        buffer: Tracker.getResourceInfo(buffer)?.id, 
+        offset, 
+        data: [...new Float32Array(data)], 
+        dataOffset, 
+        size});
+    }
+
+    return originalWriteBuffer.call(this, buffer, offset, data, dataOffset, size);
+  };
+
 }
 
 export function hookInit() {
@@ -291,16 +378,16 @@ export function hookInit() {
   //
   hookBuffers();
   hookShaders();
+  hookTextures();
   hookTextureViews();
+  hookBindGroups();
   hookPipelines();
   hookRenderPass();
 
   // 
-  hookQueueSubmits();
+  hookQueueCommands();
   // hookComputePipelines();
-  // hookTextures();
   // hookCopyCommands();
-  // hookBindGroups();
   // hookSamplers();
-  // hookQueueSubmits();
+  // hookQueueCommands();
 }
