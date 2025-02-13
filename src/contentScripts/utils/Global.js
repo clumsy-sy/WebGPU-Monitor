@@ -8,12 +8,15 @@ export const MsgType = {
   Captures_end: "CAPTURES_END",
   Frame: "FRAME_JSON",
 };
+let IDstart = 998244353;
 
 export const Utils = {
   generateUniqueNumber: () =>  {
-    const timestamp = Date.now(); // 获取当前时间戳
-    const random = Math.floor(Math.random() * 1000000); // 生成随机数
-    return parseInt(`${timestamp}${random}`, 10); // 拼接并转换为数字
+    IDstart ++;
+    return IDstart;
+    // const timestamp = Date.now(); // 获取当前时间戳
+    // const random = Math.floor(Math.random() * 1000000); // 生成随机数
+    // return parseInt(`${timestamp}${random}`, 10); // 拼接并转换为数字
   },
   getResourceType: (obj) => {
     switch (true) {

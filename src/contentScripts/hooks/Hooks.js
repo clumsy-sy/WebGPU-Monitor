@@ -5,6 +5,13 @@ import { Tracker } from "../core/Tracker.js";
 let frameCnt = 0;
 let lastFrameTime = performance.now();
 let track = new Tracker(0);
+
+function isCapture(){
+  if(Tracker.captureState.active || frameCnt == 0) {
+    return true;
+  } 
+  return false;
+}
 /**
  * @brief 注入帧钩子函数
  * @description 分割每一帧，计算 FPS 并发送到后台
@@ -13,6 +20,7 @@ function installFrameHooks() {
   const originalRAF = window.requestAnimationFrame;
   window.requestAnimationFrame = function (callback) {
     return originalRAF(timestamp => {
+      const result = callback(timestamp);
       // 计算 FPS
       {
         const currentFrameTime = performance.now();
@@ -32,9 +40,6 @@ function installFrameHooks() {
         Tracker.captureState.msg = false;
         Tracker.captureState.active = false;
         track.setTimeEnd(performance.now);
-        // console.log("[main] Tracker ----------------------------");
-        // console.log(track);
-        // console.log(Tracker.metedata);    
         console.log("[main] Tracker ----------------------------");
         console.log(JSON.stringify(track.outputFrame(), (key, value) => {
           if (key === 'data' && Array.isArray(value)) {
@@ -42,40 +47,43 @@ function installFrameHooks() {
           }
           return value;
         }, 2));
+        console.log("[main] Tracker ----------------------------");
         seedAndLogger.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(track.outputFrame()));
-        console.log("[main] FRAME ----------------------------");
         Tracker.reset();
       }
 
       // 开始截帧
       if (Tracker.captureState.msg) {
         Tracker.captureState.active = true;
-        console.log("[main] Capture next frame: ", frameCnt);
+        console.log(`[main] Capture frame [id=${frameCnt}] `);
         track = new Tracker(frameCnt);
         track.setTimeStart(performance.now);
       }
       
-      const result = callback(timestamp);
+      
       return result;
     });
   };
 }
-
-function hookCanvasContext(){
+function hookCanvasContextFunc(){
+  /*
+  */
   const originalCanvasConf = GPUCanvasContext.prototype.configure;
   GPUCanvasContext.prototype.configure = function (configuration) {
+    const ret = originalCanvasConf.call(this, configuration);
     // fixme device is a reference
     Tracker.trackCanvasConfiguration(configuration);
-    return originalCanvasConf.call(this, configuration);
+    return ret;
   };
 
+  /*
+  */
   const originalGetCurrentTexture = GPUCanvasContext.prototype.getCurrentTexture;
-  
   GPUCanvasContext.prototype.getCurrentTexture = function() {
     const texture = originalGetCurrentTexture.call(this);
     
     // 标记为 Canvas 交换链纹理
-    if(Tracker.captureState.active) {
+    if(isCapture()) {
       track.setCanvasSize(this.canvas.width, this.canvas.height);
       Tracker.trackResources(texture, 'canvasTexture', {
         canvas: this.canvas,
@@ -87,7 +95,6 @@ function hookCanvasContext(){
     return texture;
   };
 }
-
 function hookAdapter() {
   // hook requestAdapter()
   const originalRequestAdapter = navigator.gpu.requestAdapter;
@@ -108,24 +115,21 @@ function hookAdapter() {
     return adapter;
   };
 }
-
-export function hookBuffers() {
-  // hook createBuffer()
+export function hookDeviceFunc() {
+  /** */
   const originalCreateBuffer = GPUDevice.prototype.createBuffer;
   
   GPUDevice.prototype.createBuffer = function(descriptor) {
     const buffer = originalCreateBuffer.call(this, descriptor);
-    const id = Tracker.trackResources(buffer, 'buffer', descriptor);
+    Tracker.trackResources(buffer, 'buffer', descriptor);
 
-    // 
     if (descriptor.mappedAtCreation) {
       const originalGetMappedRange = buffer.getMappedRange;
       let mappedRange = null;
       
       buffer.getMappedRange = function(...args) {
         mappedRange = originalGetMappedRange.apply(this, args);
-        console.log("[mappedRange] = ", mappedRange);
-        Tracker.trackResources(buffer, 'bufferDataMap', { buffer: buffer, arrayBuffer: mappedRange });
+        Tracker.trackResources(mappedRange, 'bufferDataMap', { buffer: buffer });
         return mappedRange;
       };
 
@@ -133,26 +137,29 @@ export function hookBuffers() {
       const originalUnmap = buffer.unmap;
       buffer.unmap = function() {
         if (mappedRange) {
-          const data = new Float32Array(mappedRange);
-          console.log('arrayBuffer', mappedRange);
-          console.log('data', data);
+          // const data = new Float32Array(mappedRange);
+          // console.log('data', data);
           Tracker.trackResources(mappedRange, 'bufferData', {
             arrayBuffer: mappedRange,
-            data: data
+            data: mappedRange
           });
         }
         return originalUnmap.call(this);
       };
     } 
-    
-    
     return buffer;
   };
 
-}
+  /** */
+  const originalCreatePipelineLayout = GPUDevice.prototype.createPipelineLayout;
+  
+  GPUDevice.prototype.createPipelineLayout = function(descriptor) {
+    const pipelineLayout = originalCreatePipelineLayout.call(this, descriptor);
+    Tracker.trackResources(pipelineLayout, 'pipelineLayout', descriptor);
+    return pipelineLayout;
+  };
 
-export function hookShaders() {
-  // hook createShaderModule()
+  /** */
   const originalCreateShaderModule = GPUDevice.prototype.createShaderModule;
 
   GPUDevice.prototype.createShaderModule = function(descriptor) {
@@ -160,9 +167,8 @@ export function hookShaders() {
     Tracker.trackResources(shaderModule, 'shaderModule', descriptor);
     return shaderModule;
   };
-}
 
-export function hookTextures() {
+  /** */
   const originalCreateTexture = GPUDevice.prototype.createTexture;
   
   GPUDevice.prototype.createTexture = function(descriptor) {
@@ -171,32 +177,8 @@ export function hookTextures() {
 
     return texture;
   };
-}
 
-export function hookTextureViews() {
-  const originalCreateView = GPUTexture.prototype.createView;
-  
-  GPUTexture.prototype.createView = function(descriptor = {}) {
-    const view = originalCreateView.call(this, descriptor);
-    
-    // 关联父纹理信息
-    if(Tracker.captureState.active) {
-      const parentTextureInfo = Tracker.getResourceInfo(this);
-      Tracker.trackResources(view, 'textureView', {
-        parentTextureId: parentTextureInfo?.id,
-        descriptor,
-        width: this.width,
-        height: this.height,
-        dimensions: `${this.width}x${this.height}`,
-        format: this.format
-      });
-    }
-    
-    return view;
-  };
-}
-
-function hookBindGroups() {
+  /** */
   const originalCreateBindGroup = GPUDevice.prototype.createBindGroup;
 
   GPUDevice.prototype.createBindGroup = function(descriptor) {
@@ -205,9 +187,20 @@ function hookBindGroups() {
     
     return bindGroup;
   };
-}
 
-export function hookPipelines() {
+  /** */
+  const originalCreateBindGroupLayout = GPUDevice.prototype.createBindGroupLayout;
+  
+  GPUDevice.prototype.createBindGroupLayout = function(descriptor) {
+    const bindGroupLayout = originalCreateBindGroupLayout.call(this, descriptor);
+    Tracker.trackResources(bindGroupLayout, 'bindGroupLayout', {
+      type: 'device.bindGroupLayout',
+      args: descriptor});
+    
+    return bindGroupLayout;
+  };
+
+  /** */
   const originalCreatePipeline = GPUDevice.prototype.createRenderPipeline;
   
   GPUDevice.prototype.createRenderPipeline = function(descriptor) {
@@ -220,6 +213,7 @@ export function hookPipelines() {
         const pipelineID = Tracker.getResourceInfo(pipeline)?.id;
 
         Tracker.trackResources(bindGroupLayout, 'bindGroupLayout', {
+          type: 'pipeline.getBindGroupLayout',
           index,
           pipelineID
         });
@@ -229,7 +223,7 @@ export function hookPipelines() {
     return pipeline;
   };
 
-
+  /** */
   const originalCreateComputePipeline = GPUDevice.prototype.createComputePipeline;
   
   GPUDevice.prototype.createComputePipeline = function(descriptor) {
@@ -242,6 +236,7 @@ export function hookPipelines() {
         const pipelineID = Tracker.getResourceInfo(pipeline)?.id;
 
         Tracker.trackResources(bindGroupLayout, 'bindGroupLayout', {
+          type: 'pipeline.getBindGroupLayout',
           index,
           pipelineID
         });
@@ -250,39 +245,65 @@ export function hookPipelines() {
     }
     return pipeline;
   };
-
 }
 
-export function hookRenderPass() {
+export function hookTextureFunc() {
+  const originalCreateView = GPUTexture.prototype.createView;
+  
+  GPUTexture.prototype.createView = function(descriptor) {
+    const view = originalCreateView.call(this, descriptor);
+      // console.log("createView",this);
+    // 关联父纹理信息
+    // if(isCapture()) {
+      const parentTextureInfo = Tracker.getResourceInfo(this);
+      if(parentTextureInfo) {
+        Tracker.trackResources(view, 'textureView', {
+          parentTextureId: parentTextureInfo?.id,
+          descriptor,
+        });
+      }
+    // }
+    
+    return view;
+  };
+}
+
+export function hookCommandEncoderFunc() {
   const originalBegin = GPUCommandEncoder.prototype.beginRenderPass;
   
   GPUCommandEncoder.prototype.beginRenderPass = function(descriptor) {
     const pass = originalBegin.call(this, descriptor);
     
-    if(Tracker.captureState.active) {
+    if(isCapture()) {
+      const descriptorCopy = JSON.parse(JSON.stringify(descriptor));
       // 处理 colorAttachments
       if (descriptor.colorAttachments && Array.isArray(descriptor.colorAttachments)) {
-        descriptor.colorAttachments.forEach(attachment => {
-          if (attachment.view) {
-            attachment.view = Tracker.getResourceInfo(attachment.view)?.id;
+        for(let i = 0; i < descriptor.colorAttachments.length; i++) {
+          if(descriptor.colorAttachments[i].view) {
+            descriptorCopy.colorAttachments[i].view = Tracker.getResourceInfo(descriptor.colorAttachments[i].view)?.id;
           }
-        });
+        }
+
       }
 
       // 处理 depthStencilAttachment
       if (descriptor.depthStencilAttachment && descriptor.depthStencilAttachment.view) {
-        descriptor.depthStencilAttachment.view = Tracker.getResourceInfo(descriptor.depthStencilAttachment.view)?.id;
+        if(descriptor.depthStencilAttachment.view){
+          descriptorCopy.depthStencilAttachment.view = Tracker.getResourceInfo(descriptor.depthStencilAttachment.view)?.id;
+        }
       }
 
-      Tracker.trackCommandBuffer('beginRenderPass', descriptor);
+      Tracker.trackCommandBuffer('beginRenderPass', descriptorCopy);
 
       // 需要追踪资源的 command
-      ['setPipeline'].forEach(method => {
+      ['setPipeline', 'setIndexBuffer'].forEach(method => {
         pass[method] = new Proxy(pass[method], {
           apply(target, thisArg, args) {
+            let ret = Reflect.apply(target, thisArg, args)
             const id = Tracker.getResourceInfo(args[0])?.id;
-            Tracker.trackCommandBuffer(method, id);
-            return Reflect.apply(target, thisArg, args);
+            args[0] = id;
+            Tracker.trackCommandBuffer(method, args);
+            return ret;
           }
         });
       });
@@ -290,11 +311,11 @@ export function hookRenderPass() {
       ['setBindGroup', 'setVertexBuffer'].forEach(method => {
         pass[method] = new Proxy(pass[method], {
           apply(target, thisArg, args) {
-            const res = Reflect.apply(target, thisArg, args)
-            const id = Tracker.getResourceInfo(args[1])?.id;
+            let ret = Reflect.apply(target, thisArg, args)
+            let id = Tracker.getResourceInfo(args[1])?.id;
             args[1] = id;
             Tracker.trackCommandBuffer(method, args);
-            return res;
+            return ret;
           }
         });
       });
@@ -314,11 +335,56 @@ export function hookRenderPass() {
     return pass;
   };
 
+  const originalBeginComputePass = GPUCommandEncoder.prototype.beginComputePass;
+  
+  GPUCommandEncoder.prototype.beginComputePass = function(descriptor) {
+    const pass = originalBeginComputePass.call(this, descriptor);
+    
+    if(isCapture()) {
+      Tracker.trackCommandBuffer('beginComputePass', descriptor);
+
+      ['setPipeline'].forEach(method => {
+        pass[method] = new Proxy(pass[method], {
+          apply(target, thisArg, args) {
+            let ret = Reflect.apply(target, thisArg, args)
+            const id = Tracker.getResourceInfo(args[0])?.id;
+            args[0] = id;
+            Tracker.trackCommandBuffer(method, args);
+            return ret;
+          }
+        });
+      });
+
+      ['setBindGroup'].forEach(method => {
+        pass[method] = new Proxy(pass[method], {
+          apply(target, thisArg, args) {
+            const ret = Reflect.apply(target, thisArg, args)
+            const id = Tracker.getResourceInfo(args[1])?.id;
+            args[1] = id;
+            Tracker.trackCommandBuffer(method, args);
+            return ret;
+          }
+        });
+      });
+
+      ['dispatchWorkgroups', 'end'].forEach(method => {
+        pass[method] = new Proxy(pass[method], {
+          apply(target, thisArg, args) {
+            Tracker.trackCommandBuffer(method, args);
+            return Reflect.apply(target, thisArg, args);
+          }
+        });
+      });
+
+    }
+    return pass;
+  }
+
   const originalFinish = GPUCommandEncoder.prototype.finish;
 
   GPUCommandEncoder.prototype.finish = function (descriptor) {
     const commandBuffer = originalFinish.call(this, descriptor);
-    if(Tracker.captureState.active) {
+    if(isCapture()) {
       Tracker.trackCommandBuffer('finish', {args: descriptor});
       Tracker.recordBindCommandBuffer(commandBuffer);
       Tracker.recordCommandBufferID(commandBuffer);
@@ -335,7 +401,7 @@ export function hookQueueCommands() {
 
   GPUQueue.prototype.submit = function(commandBuffers) {
 
-    if(Tracker.captureState.active) {
+    if(isCapture()) {
       let commandBufferArray = [];
       for (let i = 0; i < commandBuffers.length; i++) {
         commandBufferArray.push(Tracker.getCommandBufferID(commandBuffers[i]))
@@ -349,7 +415,7 @@ export function hookQueueCommands() {
   const originalWriteBuffer = GPUQueue.prototype.writeBuffer;
 
   GPUQueue.prototype.writeBuffer = function(buffer, offset, data, dataOffset, size) {
-    if(Tracker.captureState.active) {
+    if(isCapture()) {
       console.log('writeBuffer', buffer, offset, data, dataOffset, size);
       // fixme data maybe is GPUBuffer
       Tracker.trackCommand('writeBuffer', {
@@ -365,29 +431,84 @@ export function hookQueueCommands() {
 
 }
 
+
+function hookType() {
+  // 保存原始构造函数
+  const originalTypedArrayConstructors = {
+    Float32Array: window.Float32Array,
+    Uint32Array: window.Uint32Array,
+    Uint16Array: window.Uint16Array,
+    Uint8Array: window.Uint8Array,
+    BigInt64Array: window.BigInt64Array,
+    // 其他
+  };
+
+  Object.keys(originalTypedArrayConstructors).forEach(type => {
+    const OriginalConstructor = originalTypedArrayConstructors[type];
+    
+    // 1. 创建 Proxy 代理
+    const ProxyConstructor = new Proxy(OriginalConstructor, {
+      construct(target, args) {
+        // 自定义逻辑：记录缓冲区类型
+        if (args[0] instanceof ArrayBuffer && args.length === 1) {
+          const mappedRangeID = Tracker.getResourceInfo(args[0])?.id;
+          if (mappedRangeID) {
+            Tracker.trackResources(args[0], 'bufferDataMap', { type: type });
+          }
+        }
+        
+        // 调用原始构造函数
+        return new OriginalConstructor(...args);
+      }
+    });
+  
+    // 2. 复制静态属性 (BYTES_PER_ELEMENT 等)
+    Object.keys(OriginalConstructor).forEach(staticProp => {
+      if (OriginalConstructor.hasOwnProperty(staticProp)) {
+        ProxyConstructor[staticProp] = OriginalConstructor[staticProp];
+      }
+    });
+  
+    // 3. 覆盖全局构造函数
+    window[type] = ProxyConstructor;
+  });
+
+  // 验证原型链和静态属性
+  console.log(Float32Array.BYTES_PER_ELEMENT); // 4
+  console.log(Uint16Array.BYTES_PER_ELEMENT);  // 2
+
+  // 覆盖构造函数以捕获数据类型
+  // Object.keys(originalTypedArrayConstructors).forEach(type => {
+  //   const OriginalConstructor = originalTypedArrayConstructors[type];
+    
+  //   originalTypedArrayConstructors[type] = function(buffer, ...args) {
+  //     if (buffer instanceof ArrayBuffer && args.length === 0) {
+  //       const mappedRangeID = Tracker.getResourceInfo(buffer)?.id;
+
+  //       if (mappedRangeID) {
+  //         Tracker.trackResources(buffer, 'bufferDataMap', { type: type });
+  //       }
+  //     }
+  //     return new OriginalConstructor(buffer, ...args);
+  //   };
+  // });
+
+}
+
 export function hookInit() {
   // 检查是否支持 WebGPU
   if (!navigator.gpu) {
     throw new Error('WebGPU is not supported in your browser.');
   }
+  // need?
+  hookType();
+
+  hookCanvasContextFunc();
+  hookAdapter();
+  hookDeviceFunc();
+  hookTextureFunc();
+  hookCommandEncoderFunc();
+  hookQueueCommands();
 
   installFrameHooks();
-  hookCanvasContext();
-  hookAdapter();
-
-  //
-  hookBuffers();
-  hookShaders();
-  hookTextures();
-  hookTextureViews();
-  hookBindGroups();
-  hookPipelines();
-  hookRenderPass();
-
-  // 
-  hookQueueCommands();
-  // hookComputePipelines();
-  // hookCopyCommands();
-  // hookSamplers();
-  // hookQueueCommands();
 }

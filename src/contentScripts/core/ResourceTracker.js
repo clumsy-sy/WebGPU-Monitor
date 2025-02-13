@@ -1,10 +1,5 @@
 import { Utils } from "../utils/Global";
 
-class BufferData {
-  byteLength = 0;
-  arrayBuffer
-}
-
 /**
  * 资源跟踪器
  * @brief 用于跟踪和标识资源，并管理资源生命周期。
@@ -12,7 +7,6 @@ class BufferData {
 export class ResourceTracker {
 
   resourceMap = new Map();
-  bufferDataMap = new Map();
   resourceId = 0;
 
   /**
@@ -25,6 +19,10 @@ export class ResourceTracker {
     // const id = `${type}_${crypto.randomUUID()}`;
     switch (type) {
       case 'pipeline':
+        if(descriptor.layout != 'auto') {
+          const layoutID = this.getResourceInfo(descriptor.layout)?.id;
+          descriptor.layout = layoutID;
+        }
         descriptor.vertex.module = this.getResourceInfo(descriptor.vertex.module)?.id;
         descriptor.fragment.module = this.getResourceInfo(descriptor.fragment.module)?.id;
         break;
@@ -32,17 +30,35 @@ export class ResourceTracker {
         descriptor.compute.module = this.getResourceInfo(descriptor.compute.module)?.id;
         break;
       case 'bufferDataMap':
-        this.bufferDataMap.set(descriptor.arrayBuffer, this.getResourceInfo(descriptor.buffer)?.id);
-        return id;
-      case 'bufferData':
-        const bufferid = this.bufferDataMap.get(descriptor.arrayBuffer);
-        if(bufferid) {
-          this.bufferDataMap.delete(descriptor.arrayBuffer);
-          const data = descriptor.data;
+        const bufferMap = this.getResourceInfo(resource)?.descriptor;
+        if(bufferMap) {
+          const type = descriptor.type;
           descriptor = {
-            id: bufferid, 
-            data: [...new Float32Array(data)]
+            bufferid: bufferMap.bufferid,
+            type: type,
+          }
+          this.untrack(resource);
+        } else {
+          let bufferid = this.getResourceInfo(descriptor.buffer)?.id;
+          if(bufferid) {
+            descriptor = { bufferid: bufferid}
+          } else {
+            throw new Error(`bufferMap not found`);
+          }
+        }
+        break;
+      case 'bufferData':
+        const buffermap = this.getResourceInfo(descriptor.arrayBuffer).descriptor;
+        console.log('[buffermap]', buffermap);
+        if(buffermap) {
+          const data = descriptor.data;
+          const type = buffermap.type;
+          descriptor = {
+            id: buffermap.bufferid, 
+            type: type,
+            data: [...new globalThis[type](data)]
           };
+          this.untrack(descriptor.arrayBuffer);
         }
         break;
       case 'bindGroup':
@@ -52,13 +68,33 @@ export class ResourceTracker {
         }
         if(descriptor.entries){
           descriptor.entries.forEach(entry => {
-            if (entry?.resource?.buffer) {
-              const bufferid = this.getResourceInfo(entry?.resource?.buffer)?.id;
+            if (entry.resource.buffer){
+              const bufferid = this.getResourceInfo(entry.resource.buffer)?.id;
               if(bufferid) {
-                entry.resource.buffer = bufferid;
+                entry.resource = bufferid;
+              }
+            } else if(entry.resource) {
+              const resourceid = this.getResourceInfo(entry.resource)?.id;
+              if(resourceid) {
+                entry.resource = resourceid;
               }
             }
           });
+        }
+        break;
+      case 'pipelineLayout':
+        if(descriptor.bindGroupLayouts) {
+          let layoutArray = [];
+          descriptor.bindGroupLayouts.forEach(layout => {
+            const bindID = this.getResourceInfo(layout)?.id;
+            if ( bindID ) {
+              layoutArray.push(bindID);
+            } else {
+              throw new Error(`bindGroupLayouts not found`);
+            }
+          });
+          descriptor.bindGroupLayouts = layoutArray;
+          console.log('[res]pipelineLayoutdescriptor', descriptor);
         }
         break;
     }
@@ -83,7 +119,6 @@ export class ResourceTracker {
 
   destory() {
     this.resourceMap.clear();
-    this.bufferDataMap.clear();
     this.resourceMap = null;
   }
 

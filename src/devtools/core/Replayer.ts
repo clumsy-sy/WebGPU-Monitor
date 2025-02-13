@@ -8,7 +8,8 @@ type GPUResource =
   | GPUComputePipeline
   | GPUBindGroup
   | GPUBindGroupLayout
-  | GPUCommandBuffer;
+  | GPUCommandBuffer
+  | GPUPipelineLayout;
 
 interface QueueCommandType {
   type: string;
@@ -111,6 +112,9 @@ export class WebGPUReproducer {
         case 'shaderModule':
           this.createShaderModule(res);
           break;
+        case 'pipelineLayout':
+          this.createPipelineLayout(res);
+          break;
         case 'pipeline':
           this.createPipeline(res);
           break;
@@ -151,8 +155,15 @@ export class WebGPUReproducer {
   private createBufferData(res: any) {
     const buffer = this.resourceMap.get(res.descriptor.id);
     if(buffer && buffer instanceof GPUBuffer) {
-      new Float32Array(buffer.getMappedRange()).set(res.descriptor.data);
-      buffer.unmap();
+      console.log('[BufferDatares]  ', res);
+      const constructorName = res.descriptor.type as keyof typeof globalThis;
+      if(constructorName in globalThis) {
+        const constructor = globalThis[constructorName];
+        new constructor(buffer.getMappedRange()).set(res.descriptor.data);
+        buffer.unmap();
+      } else {
+        console.error(`[replayer] createBufferData : constructor ${constructorName} not found`);
+      }
     } else {
       throw new Error(`[replayer] createBufferData : buffer ${res.descriptor.id} not found`);
     }
@@ -168,6 +179,18 @@ export class WebGPUReproducer {
     this.resourceMap.set(res.id, shaderModule);
   }
 
+  private createPipelineLayout(res: any) {
+    const descriptor = res.descriptor;
+    const bindGroupLayouts = descriptor.bindGroupLayouts.map((id: string) => this.resourceMap.get(id));
+    const pipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts
+    });
+    console.log("[replayer] PipelineLayout : ", res.id);
+    console.log("[replayer] PipelineLayout bindGroupLayouts: ", bindGroupLayouts);
+    this.resourceMap.set(res.id, pipelineLayout);
+    console.log("[replayer] createPipelineLayout : ", pipelineLayout)
+  }
+
   private createPipeline(res: any) {
     const descriptor = this.normalizePipelineDescriptor(res.descriptor);
     const pipeline = this.device.createRenderPipeline(descriptor);
@@ -178,7 +201,7 @@ export class WebGPUReproducer {
 
   private normalizePipelineDescriptor(desc: any): GPURenderPipelineDescriptor {
     return {
-      layout: desc.layout,
+      layout: desc.layout !== "auto" ? this.resourceMap.get(desc.layout) as GPUPipelineLayout : "auto",
       vertex: {
         module: this.resourceMap.get(desc.vertex.module),
         ...(desc.vertex.entryPoint && { entryPoint: desc.vertex.entryPoint }), // 条件添加 entryPoint
@@ -194,7 +217,8 @@ export class WebGPUReproducer {
       fragment: {
         module: this.resourceMap.get(desc.fragment.module),
         ...(desc.fragment.entryPoint && { entryPoint: desc.fragment.entryPoint }),
-        targets: desc.fragment.targets
+        targets: desc.fragment.targets,
+        ...(desc.fragment.constants && { constants: desc.fragment.constants })
       },
       primitive: desc.primitive,
       depthStencil: desc.depthStencil
@@ -206,6 +230,7 @@ export class WebGPUReproducer {
     const pipeline = this.device.createComputePipeline(descriptor);
     console.log("[replayer] createComputePipeline : ", res.id);
     console.log("[replayer] ComputePipelineDescriptor : ", descriptor);
+    console.log("[replayer] ComputePipeline : ", pipeline);
     this.resourceMap.set(res.id, pipeline);
   }
 
@@ -259,54 +284,97 @@ export class WebGPUReproducer {
         layout: bindGroupLayout,
         entries: res.descriptor.entries.map((entry: any) => ({
           binding: entry.binding,
-          resource: {
-            buffer: this.resourceMap.get(entry.resource.buffer)
-          }
+          resource: this.resourceMap.get(entry.resource) instanceof GPUBuffer ?
+            { buffer: this.resourceMap.get(entry.resource) } :
+            this.resourceMap.get(entry.resource) 
         }))
       });
-      console.log("[replayer] createBindGroup : ", res.id);
+      console.log("[replayer] BindGroup : ", res);
       this.resourceMap.set(res.id, bindGroup);
+      console.log("[replayer] createBindGroup : ", bindGroup);
     } else {
       throw new Error(`[replayer] createBindGroup : bindGroupLayout ${res.descriptor.layout} not found`);
     }
   }
 
   private createBindGroupLayout(res: any) {
-    const pipeline = this.resourceMap.get(res.descriptor.pipelineID);
-    if(pipeline && pipeline instanceof GPURenderPipeline) {
-      const bindGroupLayout = pipeline.getBindGroupLayout(res.descriptor.index);
-      console.log("[replayer] getBindGroupLayout : ", res.id);
+    if(res.descriptor.type == 'pipeline.getBindGroupLayout') {
+      const pipeline = this.resourceMap.get(res.descriptor.pipelineID);
+      if(pipeline && pipeline instanceof GPURenderPipeline) {
+        const bindGroupLayout = pipeline.getBindGroupLayout(res.descriptor.index);
+        console.log("[replayer] getBindGroupLayout : ", res.id);
+        this.resourceMap.set(res.id, bindGroupLayout);
+      } else  if (pipeline && pipeline instanceof GPUComputePipeline){
+        const bindGroupLayout = pipeline.getBindGroupLayout(res.descriptor.index);
+        console.log("[replayer] getBindGroupLayout : ", res.id);
+        this.resourceMap.set(res.id, bindGroupLayout);
+      } else {
+        console.error(`pipeline ${pipeline} not found, descriptor : ${res.descriptor}`)
+        throw new Error(`[replayer] getBindGroupLayout : pipeline ${res.descriptor.pipelineID} not found`);
+      }
+    } else if(res.descriptor.type == 'device.bindGroupLayout') {
+      const bindGroupLayout = this.device.createBindGroupLayout(res.descriptor.args);
+      console.log("[replayer] createBindGroupLayout : ", res.id);
       this.resourceMap.set(res.id, bindGroupLayout);
     } else {
-      throw new Error(`[replayer] getBindGroupLayout : pipeline ${res.descriptor.pipelineID} not found`);
+      throw new Error(`[replayer] createBindGroupLayout : unknown type ${res.descriptor.type}`);
     }
   }
 
   private executeCommands(frameData: ReplayFrameData) {
     frameData.commands.forEach(cmdGroup => {
       if ('commandBufferID' in cmdGroup) {
-        console.log("[replayer] executeCommands : ", cmdGroup.commandBufferID);
+        console.log("[replayer] executeCommands ID: ", cmdGroup.commandBufferID);
+        console.log("[replayer] Commands : ", cmdGroup);
         const commandEncoder = this.device.createCommandEncoder();
-        let passEncoder: GPURenderPassEncoder | null = null;
+        let renderPassEncoder: GPURenderPassEncoder | null = null;
+        let computePassEncoder: GPUComputePassEncoder | null = null;
         cmdGroup.commands.map(cmd => {
           switch (cmd.type) {
             case 'beginRenderPass':
-              passEncoder = this.encoderBeginRenderPass(commandEncoder, cmd.args);
+              renderPassEncoder = this.encoderBeginRenderPass(commandEncoder, cmd.args);
+              break;
+            case 'beginComputePass':
+              computePassEncoder = this.encoderBeginComputePass(commandEncoder, cmd.args);
               break;
             case 'setPipeline':
-              this.encoderSetPipeline(passEncoder, cmd.args);
+              if(renderPassEncoder != null) {
+                this.encoderSetPipeline(renderPassEncoder, cmd.args);
+              } else {
+                this.encoderSetPipeline(computePassEncoder, cmd.args);
+              }
               break;
             case 'setBindGroup':
-              this.encoderSetBindGroup(passEncoder, cmd.args);
+              if(renderPassEncoder != null) {
+                this.encoderSetBindGroup(renderPassEncoder, cmd.args);
+              } else {
+                this.encoderSetBindGroup(computePassEncoder, cmd.args);
+              }
               break;
             case 'setVertexBuffer':
-              this.encoderSetVertexBuffer(passEncoder, cmd.args);
+              this.encoderSetVertexBuffer(renderPassEncoder, cmd.args);
+              break;
+            case 'setIndexBuffer':
+              this.encoderSetIndexBuffer(renderPassEncoder, cmd.args);
               break;
             case 'draw':
-              this.encoderDraw(passEncoder, cmd.args);
+              this.encoderDraw(renderPassEncoder, cmd.args);
+              break;
+            case 'drawIndexed':
+              this.encoderDrawIndexed(renderPassEncoder, cmd.args);
+              break;
+            case 'dispatchWorkgroups':
+              this.encoderDispatchWorkgroups(computePassEncoder, cmd.args);
               break;
             case 'end':
-              this.encoderEnd(passEncoder);
+              if(renderPassEncoder != null) {
+                this.encoderEnd(renderPassEncoder);
+                // need!!!
+                renderPassEncoder = null;
+              } else {
+                this.encoderEnd(computePassEncoder);
+                renderPassEncoder = null;
+              }
               break;
             case 'finish':
               this.encoderFinish(commandEncoder, cmdGroup.commandBufferID, cmd.args);
@@ -348,25 +416,40 @@ export class WebGPUReproducer {
     return commandEncoder.beginRenderPass(renderPassDescriptor);
   }
 
-  private encoderSetPipeline(passEncoder: GPURenderPassEncoder | null, args: any) {
+  private encoderBeginComputePass(commandEncoder: GPUCommandEncoder, args: any) : GPUComputePassEncoder {
+    console.log("[replayer] encoderBeginComputePass : ", args);
+    const ret = commandEncoder.beginComputePass(args);
+    console.log("[replayer] encoderBeginComputePass ret: ", ret);
+    return ret;
+  }
+
+  private encoderSetPipeline(passEncoder: GPURenderPassEncoder | GPUComputePassEncoder | null, args: any) {
+    console.log("[replayer] encoderSetPipeline : ", passEncoder, args);
     if(passEncoder) {
-      const pipeline = this.resourceMap.get(args);
-      if(pipeline && pipeline instanceof GPURenderPipeline) {
+      const pipeline = this.resourceMap.get(args[0]);
+      if(pipeline && passEncoder instanceof GPURenderPassEncoder &&
+            pipeline instanceof GPURenderPipeline) {
+        passEncoder.setPipeline(pipeline);
+      } else if( pipeline && passEncoder instanceof GPUComputePassEncoder &&
+              pipeline instanceof GPUComputePipeline
+          ) {
         passEncoder.setPipeline(pipeline);
       } else {
-        throw new Error(`[replayer] encoderSetPipeline : pipeline ${args} not found`);
+        console.error(`pipeline ${pipeline} , args: ${args}`);
+        throw new Error(`[replayer] encoderSetPipeline : pipeline ${args[0]} not found`);
       }
     } else {
       throw new Error(`[replayer] encoderSetPipeline : passEncoder is null`);
     }
   }
 
-  private encoderSetBindGroup(passEncoder: GPURenderPassEncoder | null, args: any) {
+  private encoderSetBindGroup(passEncoder: GPURenderPassEncoder |  GPUComputePassEncoder | null, args: any) {
     if(passEncoder) {
       const bindGroup = this.resourceMap.get(args[1]);
       if(bindGroup && bindGroup instanceof GPUBindGroup) {
         // fixme
         passEncoder.setBindGroup(args[0], bindGroup);
+        console.log("[replayer] encoderSetBindGroup: bindGroup: ", bindGroup)
       } else {
         throw new Error(`[replayer] encoderSetBindGroup : bindGroup ${args.bindGroup} not found`);
       }
@@ -381,8 +464,22 @@ export class WebGPUReproducer {
       if(buffer && buffer instanceof GPUBuffer) {
         // fixme
         passEncoder.setVertexBuffer(args[0], buffer);
+        console.log("[replayer] encoderSetVertexBuffer: buffer: ", buffer)
       } else {
         throw new Error(`[replayer] encoderSetVertexBuffer: buffer ${args.buffer} not found`);
+      }
+    }
+  }
+
+  private encoderSetIndexBuffer(passEncoder: GPURenderPassEncoder | null, args: any) {
+    if(passEncoder) {
+      const indexbuffer = this.resourceMap.get(args[0]);
+      if(indexbuffer && indexbuffer instanceof GPUBuffer) {
+        // fixme
+        passEncoder.setIndexBuffer(indexbuffer, args[1]);
+        console.log("[replayer] encoderSetIndexBuffer: buffer: ", indexbuffer)
+      } else {
+        throw new Error(`[replayer] encoderSetIndexBuffer: buffer ${args[0]} not found`);
       }
     }
   }
@@ -402,10 +499,38 @@ export class WebGPUReproducer {
     }
   }
 
-  private encoderEnd(passEncoder: GPURenderPassEncoder | null) {
+  private encoderDrawIndexed(passEncoder: GPURenderPassEncoder | null, args: any) {
     if(passEncoder) {
+      const drawIndexedArgs: [number, number, number, number, number] = [
+        args[0] ?? 0, // indexCount
+        args[1] ?? 1, // instanceCount
+        args[2] ?? 0, // firstIndex
+        args[3] ?? 0, // baseVertex
+        args[4] ?? 0, //firstInstance
+      ]
+      console.log("[replayer] encoderDrawIndexed args: ", drawIndexedArgs)
+      passEncoder.drawIndexed(...drawIndexedArgs);
+    }
+  }
+
+  private encoderDispatchWorkgroups(passEncoder: GPUComputePassEncoder | null, args: any) {
+    if(passEncoder) {
+      const dispatchWorkgroupsArgs: [number, number, number] = [
+        args[0] ?? 1, // workgroupCountX
+        args[1] ?? 1, // workgroupCountY
+        args[2] ?? 1, // workgroupCountZ
+      ]
+      console.log("[replayer] encoderDispatchWorkgroups args: ", dispatchWorkgroupsArgs)
+     passEncoder.dispatchWorkgroups(...dispatchWorkgroupsArgs)
+    }
+  }
+
+  private encoderEnd(passEncoder: GPURenderPassEncoder | GPUComputePassEncoder | null) {
+    if(passEncoder) {
+      console.log("[replayer] encoder passEncoder", passEncoder);
       passEncoder.end();
-      console.log("[replayer] encoderEnd");
+      passEncoder = null;
+      console.log("[replayer] encoderEnd passEncoder", passEncoder);
     } else {
       throw new Error(`[replayer] encoderEnd : passEncoder is null`);
     }

@@ -65,7 +65,6 @@ export class Tracker{
     this.CanvasHeight = 0;
   }
 
-
   static trackCanvasConfiguration(configuration) {
     this.metedata.CanvasConfiguration = configuration;
   }

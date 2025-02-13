@@ -1,5 +1,6 @@
-import { Serializer } from "../utils/Serializer";
-
+/**
+ * @brief CommandBuffer 命令记录器
+ */
 class CommandBufferRecorder {
   commandBufferID = 0;
   commands = [];
@@ -32,13 +33,14 @@ class CommandBufferRecorder {
   }
 }
 
+/**
+ * @brief 命令记录器
+ */
 export class CommandRecorder {
 
-  
   commandQueue = [];
   currentCommandBuffer = 0;
   commandBuffer = new Map();
-
 
   constructor() {
     this.startCommandBuffer();
@@ -63,7 +65,7 @@ export class CommandRecorder {
   }
 
   recordCommandBuffer(type, args) {
-    if(this.currentCommandBuffer == 0 && type == "beginRenderPass") {
+    if(this.currentCommandBuffer == 0 && (type == "beginRenderPass" || type == "beginComputePass")) {
       this.currentCommandBuffer = this.commandQueue.length;
       let commandbuffer = new CommandBufferRecorder();
       commandbuffer.recordCommand(type, args);
@@ -92,6 +94,8 @@ export class CommandRecorder {
 
   destory() {
     this.commandQueue = [];
+    this.commandBuffer.clear();
+    this.commandBuffer = null;
     this.commandQueue = null;
   }
 }
