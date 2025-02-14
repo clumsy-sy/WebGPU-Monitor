@@ -18,8 +18,20 @@ function isCapture(){
  */
 function installFrameHooks() {
   const originalRAF = window.requestAnimationFrame;
+
+  let lastCallbackTag = null;
+
   window.requestAnimationFrame = function (callback) {
     return originalRAF(timestamp => {
+
+      const CallbackTag = Symbol.for(callback.toString());
+      
+      if (CallbackTag !== lastCallbackTag) {
+        frameCnt = 0;
+        // Tracker.reset();
+        lastCallbackTag = CallbackTag;
+      }
+      
       const result = callback(timestamp);
       // 计算 FPS
       {

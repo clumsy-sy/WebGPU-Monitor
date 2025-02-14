@@ -1,17 +1,145 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>WebGPU DevTools</title>
+  <style>
+    :root {
+      --primary-color: #2d3436;
+      --secondary-color: #636e72;
+      --accent-color: #0984e3;
+      --background: #f5f6fa;
+      --text-color: #2d3436;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    body {
+      background: var(--background);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 250px 1fr;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    header {
+      grid-column: 1 / -1;
+      padding: 1.5rem;
+      background: var(--primary-color);
+      color: white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .sidebar {
+      padding: 1.5rem;
+      background: white;
+      border-right: 1px solid #e0e0e0;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .main-content {
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 2rem;
+      align-content: start;
+    }
+
+    .canvas-container {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+
+    canvas {
+      width: 100%;
+      height: auto;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      background: repeating-conic-gradient(#fafafa 0% 25%, #fff 0% 50%) 50% / 20px 20px;
+    }
+
+    #getFrame {
+      width: 100%;
+      padding: 12px;
+      background: var(--accent-color);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.2s;
+    }
+
+    #getFrame:hover {
+      background: #0873c4;
+      transform: translateY(-1px);
+    }
+
+    #texture-select {
+      width: 100%;
+      margin-top: 1rem;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: white;
+    }
+
+    #fpsPrint {
+      position: fixed;
+      bottom: 0;
+      right: 0;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px 0 0 0;
+      font-family: monospace;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid #eee;
+      }
+    }
+  </style>
   <script src="../../dist/panel.bundle.js"></script>
 </head>
 <body>
-  <h1>WebGPU DevTools Panel</h1>
-  <div id="fpsPrint"></div>
-  <button id="getFrame">Capture</button>
-  <br>
-  <canvas id="replay">
-  <!-- <canvas id="webgpuCanvas" width="800" height="600"></canvas> -->
-  <!-- <script src = "render.js"> </script> -->
+  <header>
+    <h1>WebGPU DevTools</h1>
+  </header>
+
+  <div class="sidebar">
+    <button id="getFrame">🎮 Capture Frame</button>
+    <select id="texture-select">
+      <option value="">Select Texture...</option>
+    </select>
+  </div>
+
+  <main class="main-content">
+    <div class="canvas-container">
+      <h3>Replay Canvas</h3>
+      <canvas id="replay"></canvas>
+    </div>
+    <div class="canvas-container">
+      <h3>Texture Viewer</h3>
+      <canvas id="texture-viewer"></canvas>
+    </div>
+  </main>
+
+  <div id="fpsPrint">FPS: --</div>
 </body>
 </html>

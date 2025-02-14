@@ -1,4 +1,5 @@
 import { WebGPUReproducer } from "./core/Replayer";
+import { TextureViewer } from "./core/TextureViewer";
 
 /**
  * @brief 信息类型
@@ -48,12 +49,13 @@ port.onMessage.addListener((message: string) => {
     console.log("[panel] Frame json:", receivedData.data);
     const replayCanvas = document.getElementById('replay') as HTMLCanvasElement | null;
     if(replayCanvas && typeof receivedData.data === "string") {
-      const replayer = new WebGPUReproducer(replayCanvas, receivedData.data);
-      // (async () => {
-      //   await replayer.replayFrame();
-      // });
-      // console.log("[panel] replayer:", replayer);
-      // console.log(`[panel] canvas: [${replayCanvas?.width}, ${replayCanvas?.height}]`);
+      const replayer = new WebGPUReproducer(replayCanvas);
+      replayer.initialize()
+      .then(() => { replayer.replayFrame(receivedData.data as string); })
+      .then(() => { 
+        const texViewer = new TextureViewer('texture-viewer', 'texture-select', replayer.getDevice());
+        texViewer.addTextureViews(replayer.getTextureViews());
+      });
     }
 
   } else {

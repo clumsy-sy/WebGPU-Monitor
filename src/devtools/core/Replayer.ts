@@ -1,4 +1,7 @@
 /// <reference types="@webgpu/types" />
+
+import { TextureViewInfo } from "./TextureViewer";
+
 type GPUResource = 
   | GPUBuffer 
   | GPUTexture 
@@ -48,42 +51,45 @@ export class WebGPUReproducer {
   private device!: GPUDevice;
   private canvasContext !: GPUCanvasContext;
   private resourceMap = new Map<string, GPUResource>();
-  private commandQueue: Function[] = [];
   private FrameData: ReplayFrameData | null = null;
+  private MainCanvas: HTMLCanvasElement | null = null;
+  textureViews: TextureViewInfo[] = [];
 
 
-  constructor(canvas: HTMLCanvasElement, jsonData: string) {
-    this.initialize(canvas).then(async () => {
+  constructor(canvas: HTMLCanvasElement) {
+    this.MainCanvas = canvas;
 
-      this.FrameData = JSON.parse(jsonData) as ReplayFrameData;
-      if(this.FrameData) {
-        console.log("[panel] frameData:", this.FrameData);
-        console.log("[panel] canvasWidth:", this.FrameData.canvasWidth);
-        console.log("[panel] canvasHeight:", this.FrameData.canvasHeight);
-      }
-      canvas.width = this.FrameData!.canvasWidth;
-      canvas.height = this.FrameData!.canvasHeight;
-      console.log(`[panel] canvas: [${canvas?.width}, ${canvas?.height}]`);
-      
-      this.configureCanvas(this.FrameData);
-      await this.recreateResources(this.FrameData);
-      this.executeCommands(this.FrameData);
-    });
   }
 
-  async initialize(canvas: HTMLCanvasElement) {
+  async initialize() {
+    if(!this.MainCanvas){
+      throw new Error('[replayer] canvas is null');
+    }
     const adapter = await navigator.gpu.requestAdapter();
     this.device = await adapter!.requestDevice();
-    this.canvasContext = canvas.getContext('webgpu') as GPUCanvasContext ;
+    this.canvasContext = this.MainCanvas.getContext('webgpu') as GPUCanvasContext ;
     if(!this.canvasContext) {
       console.error('WebGPU context not supported');
     }
   }
 
-  async replayFrame() {
-    if(!this.FrameData) {
+  async replayFrame(jsonData: string) {
+    this.FrameData = JSON.parse(jsonData) as ReplayFrameData;
+    if(this.FrameData) {
+      console.log("[panel] frameData:", this.FrameData);
+      console.log("[panel] canvasWidth:", this.FrameData.canvasWidth);
+      console.log("[panel] canvasHeight:", this.FrameData.canvasHeight);
+    } else {
       throw new Error('[replayer] frameData is null');
     }
+    if(this.MainCanvas) {
+      this.MainCanvas.width = this.FrameData!.canvasWidth;
+      this.MainCanvas.height = this.FrameData!.canvasHeight;
+      console.log(`[panel] canvas: [${this.MainCanvas?.width}, ${this.MainCanvas?.height}]`);
+    } else {
+      throw new Error('[replayer] canvas is null');
+    }
+
     this.configureCanvas(this.FrameData);
     await this.recreateResources(this.FrameData);
     this.executeCommands(this.FrameData);
@@ -249,10 +255,13 @@ export class WebGPUReproducer {
     const textureDescriptor : GPUTextureDescriptor = {
       size: res.descriptor.size,
       format: res.descriptor.format || 'rgba8unorm',
-      ...(res.descriptor.usage && { usage: res.descriptor.usage }),
+      // !!! GPUTextureUsage.COPY_SRC
+      ...(res.descriptor.usage && { usage: res.descriptor.usage | GPUTextureUsage.COPY_SRC}),
       ...(res.descriptor.mipLevelCount && { mipLevelCount: res.descriptor.mipLevelCount }),
       ...(res.descriptor.sampleCount && { sampleCount: res.descriptor.sampleCount }),
-      ...(res.descriptor.viewFormats && { viewFormats: res.descriptor.viewFormats })
+      ...(res.descriptor.viewFormats && { viewFormats: res.descriptor.viewFormats }),
+      ...(res.descriptor.label && { label: res.descriptor.label }),
+      ...(res.descriptor.dimension && { dimension: res.descriptor.dimension })
     };
     const texture = this.device.createTexture(textureDescriptor);
     console.log("[replayer] createTexture : ", res.id);
@@ -272,6 +281,17 @@ export class WebGPUReproducer {
       const textureView = parentTexture.createView(res.descriptor.descriptor);
       console.log("[replayer] createTextureView : ", res.id);
       this.resourceMap.set(res.id, textureView);
+
+      let testTextureinfo = {
+        view: textureView,
+        texture: parentTexture,
+        format: parentTexture.format,
+        width: parentTexture.width,
+        height: parentTexture.height,
+        label: parentTexture.label
+      }
+      this.textureViews.push(testTextureinfo);
+
     } else {
       throw new Error(`[replayer] createTextureView : texture ${res.descriptor.parentTextureId} not found`);
     }
@@ -573,8 +593,15 @@ export class WebGPUReproducer {
     console.log("[replayer] queueSubmit");
   }
 
+  getTextureViews() {
+    return this.textureViews;
+  }
 
+  getDevice() {
+    return this.device;
+  }
 }
+
 
 // 使用示例
 // const canvas = document.createElement('canvas');
