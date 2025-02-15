@@ -65,6 +65,14 @@ export class Tracker{
     this.CanvasHeight = 0;
   }
 
+  static clear() {
+    this.metedata.command.destory();
+    this.metedata.command = new CommandRecorder();
+    this.currentFrame = 0;
+    this.timeStart = 0.0;
+    this.timeEnd = 0.0;
+  }
+
   static trackCanvasConfiguration(configuration) {
     this.metedata.CanvasConfiguration = configuration;
   }

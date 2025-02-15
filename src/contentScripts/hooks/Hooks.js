@@ -61,7 +61,7 @@ function installFrameHooks() {
         }, 2));
         console.log("[main] Tracker ----------------------------");
         seedAndLogger.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(track.outputFrame()));
-        Tracker.reset();
+        Tracker.clear();
       }
 
       // 开始截帧

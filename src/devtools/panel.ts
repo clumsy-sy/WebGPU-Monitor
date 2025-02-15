@@ -17,9 +17,37 @@ const MsgType = {
 const tabId: number = chrome.devtools.inspectedWindow.tabId;
 console.log("[panel] get current TabId:", tabId);
 
-// 创建一个端口，用于与 content_script 进行通信
-const port: chrome.runtime.Port = chrome.tabs.connect(tabId, { name: "panel" });
+let port: chrome.runtime.Port = chrome.tabs.connect(tabId, { name: "panel" });
+portListener(port);
 
+// 创建带自动重连的连接
+const createPersistentConnection = (tabId: number) => {
+
+  // 建立新连接
+  port = chrome.tabs.connect(tabId, {
+    name: "panel"
+  });
+
+  // 配置自动重连
+  port.onDisconnect.addListener(() => {
+    console.log(`Connection lost for tab ${tabId}, attempting reconnect...`);
+    setTimeout(() => createPersistentConnection(tabId), 2000); // 2秒重试
+  });
+
+  portListener(port);
+
+};
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "complete") {
+    console.log("[panel] Tab updated:", tabId, changeInfo);
+    console.log(`Tab ${tabId} reloaded, reconnecting...`);
+    port.disconnect();
+    createPersistentConnection(tabId)
+  }
+});
+
+// 创建一个端口，用于与 content_script 进行通信
 interface fpsType {
   frameCnt: number;
   deltaTime: number;
@@ -33,35 +61,38 @@ interface ReceivedMessage {
 }
 
 // 接收来自 content_script 的消息
-port.onMessage.addListener((message: string) => {
-  const receivedData: ReceivedMessage = JSON.parse(message);
-  const fps = document.getElementById("fpsPrint");
+function portListener(port: chrome.runtime.Port) {
 
-  if (receivedData.type === MsgType.Window) {
-    if (receivedData.data !== undefined && receivedData.data !== null && typeof receivedData.data === "object") {
-      if (fps) {
-        fps.textContent = `当前帧率: ${receivedData.data.fps} FPS (${receivedData.data.deltaTime} ms / frame) `;
+  port.onMessage.addListener((message: string) => {
+    const receivedData: ReceivedMessage = JSON.parse(message);
+    const fps = document.getElementById("fpsPrint");
+  
+    if (receivedData.type === MsgType.Window) {
+      if (receivedData.data !== undefined && receivedData.data !== null && typeof receivedData.data === "object") {
+        if (fps) {
+          fps.textContent = `当前帧率: ${receivedData.data.fps} FPS (${receivedData.data.deltaTime} ms / frame) `;
+        }
       }
+    } else if (receivedData.type === MsgType.Captures_end) {
+      console.log("[panel] Message received in panel.js:", receivedData);
+    } else if (receivedData.type === MsgType.Frame) {
+      console.log("[panel] Frame json:", receivedData.data);
+      const replayCanvas = document.getElementById('replay') as HTMLCanvasElement | null;
+      if(replayCanvas && typeof receivedData.data === "string") {
+        const replayer = new WebGPUReproducer(replayCanvas);
+        replayer.initialize()
+        .then(() => { replayer.replayFrame(receivedData.data as string); })
+        .then(() => { 
+          const texViewer = new TextureViewer('texture-viewer', 'texture-select', replayer.getDevice());
+          texViewer.addTextureViews(replayer.getTextureViews());
+        });
+      }
+  
+    } else {
+      console.log("[panel] Message received in panel.js:", receivedData);
     }
-  } else if (receivedData.type === MsgType.Captures_end) {
-    console.log("[panel] Message received in panel.js:", receivedData);
-  } else if (receivedData.type === MsgType.Frame) {
-    console.log("[panel] Frame json:", receivedData.data);
-    const replayCanvas = document.getElementById('replay') as HTMLCanvasElement | null;
-    if(replayCanvas && typeof receivedData.data === "string") {
-      const replayer = new WebGPUReproducer(replayCanvas);
-      replayer.initialize()
-      .then(() => { replayer.replayFrame(receivedData.data as string); })
-      .then(() => { 
-        const texViewer = new TextureViewer('texture-viewer', 'texture-select', replayer.getDevice());
-        texViewer.addTextureViews(replayer.getTextureViews());
-      });
-    }
-
-  } else {
-    console.log("[panel] Message received in panel.js:", receivedData);
-  }
-});
+  });
+}
 
 // 确保页面加载完成后再执行相关操作
 document.addEventListener("DOMContentLoaded", () => {
