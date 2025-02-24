@@ -11,6 +11,8 @@ npm install
 npm run dev
 ```
 
+然后当作 chrome 插件即可
+
 ## 开发计划
 
 ### 思路
@@ -31,7 +33,7 @@ npm run dev
 
 |功能|实现难度|必要性|技术方案|
 |----|----|----|----|
-|API 调用记录|★★☆|高|猴子补丁劫持 navigator.gpu 及所有子对象方法|
+|API 调用记录|★★☆|高|劫持 navigator.gpu 及所有子对象方法|
 |资源生命周期追踪|★★★|高|WeakRef + FinalizationRegistry 跟踪资源销毁|
 |帧边界标记|★★☆|高|劫持 queue.submit() 自动划分帧边界|
 |基本性能统计|★☆☆|中|统计调用次数、耗时分布、数据传输量|
@@ -94,3 +96,15 @@ sequenceDiagram
   FrameManager->>chrome.runtime: Send Frame Data
   chrome.runtime->>DevTools: Process & Display
 ```
+
+### 细分
+
+-[ ] 改用 typescript 重写 拦劫函数
+-[ ] 更加完善的信息传递（json 压缩）
+-[ ] 更加详细的渲染统计，仿照 RenderDoc
+-[ ] 一帧信息，应当由子树你推形成，而非全部记录
+-[ ] devtools 展示部分需要各种资源之间的相互链接
+-[ ] buffer viewer / Mesh Viewer
+-[ ] texture viewer
+-[ ] shader viewer + editor
+-[ ] TimeLine / event Browser / API inspector / Resource Browser

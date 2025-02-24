@@ -5,6 +5,7 @@ import { Tracker } from "../core/Tracker.js";
 let frameCnt = 0;
 let lastFrameTime = performance.now();
 let track = new Tracker(0);
+let lastUrl = location.href;
 
 function isCapture(){
   if(Tracker.captureState.active || frameCnt == 0) {
@@ -24,14 +25,20 @@ function installFrameHooks() {
   window.requestAnimationFrame = function (callback) {
     return originalRAF(timestamp => {
 
-      const CallbackTag = Symbol.for(callback.toString());
-      
-      if (CallbackTag !== lastCallbackTag) {
+      if (lastUrl !== location.href) {
+        lastUrl = location.href;
         frameCnt = 0;
-        // Tracker.reset();
-        lastCallbackTag = CallbackTag;
+        Tracker.reset();
+      } else {
+        const CallbackTag = Symbol.for(callback.toString());
+        
+        if (CallbackTag !== lastCallbackTag) {
+          frameCnt = 0;
+          // Tracker.reset();
+          lastCallbackTag = CallbackTag;
+        }
       }
-      
+
       const result = callback(timestamp);
       // 计算 FPS
       {
