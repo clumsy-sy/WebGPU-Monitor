@@ -70,7 +70,10 @@ function portListener(port: chrome.runtime.Port) {
     if (receivedData.type === MsgType.Window) {
       if (receivedData.data !== undefined && receivedData.data !== null && typeof receivedData.data === "object") {
         if (fps) {
-          fps.textContent = `当前帧率: ${receivedData.data.fps} FPS (${receivedData.data.deltaTime} ms / frame) `;
+          // fixme 输出长度不固定
+          const fpsValue = receivedData.data.fps.toString().padEnd(5, ' ');
+          const deltaTimeValue = receivedData.data.deltaTime.toFixed(4).toString().padEnd(8, ' ');
+          fps.textContent = `当前帧率: ${fpsValue} FPS (${deltaTimeValue} ms / frame) `;
         }
       }
     } else if (receivedData.type === MsgType.Captures_end) {
