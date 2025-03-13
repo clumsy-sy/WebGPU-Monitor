@@ -1,4 +1,5 @@
 import { Msg } from "../../../global/message";
+import { APIRecorder } from "../api-recorder";
 import { ResourceTracker } from "../resource-tracker";
 
 type GPUXXX = any;
@@ -10,6 +11,7 @@ export class GPUXXXHook {
   private static hookedMethods: WeakMap<any, Map<string, Function>> = new WeakMap();
   private static tracker = ResourceTracker.getInstance();
   private static msg = Msg.getInstance();
+  private static APIrecorder = APIRecorder.getInstance();
 
   // 钩子入口方法
   static hookGPUXXX<T extends GPUXXX>(xxx: T, methodsList: string[] = []): T {
@@ -27,6 +29,23 @@ export class GPUXXXHook {
     });
 
     return xxx;
+  }
+
+  // 钩子入口原型方法
+  static hookGPUXXXPrototype(methodsList: string[] = []){
+    // const proto = GPUXXX.prototype;
+    const proto = GPUBuffer.prototype;
+    
+    // 需要拦截的 WebGPU XXX API列表
+    const methodsToHook: string[] = [
+      // 添加其他需要拦截的方法...
+      ...methodsList
+    ];
+
+    // 遍历并劫持方法
+    methodsToHook.forEach(methodName => {
+      this.hookMethod(proto, methodName);
+    });
   }
 
   // 方法劫持核心逻辑
@@ -47,6 +66,8 @@ export class GPUXXXHook {
         const result = originalMethod.apply(this, args);
         // 记录资源
         GPUXXXHook.tracker.track(result, args, methodName);
+        // 记录 API 调用
+        GPUXXXHook.APIrecorder.recordMethodCall(methodName, args);
         // 返回结果
         return result;
       } catch (error) {
