@@ -34,14 +34,10 @@ export class ResourceTracker {
     switch (type) {
       case 'pipeline':
         if(desc.layout != 'auto') {
-          const layoutID = this.getResInfo(desc.layout)?.id;
-          desc.layout = layoutID;
+          this.replaceResourcesInDesc(desc);
         }
         desc.vertex.module = this.getResInfo(desc.vertex.module)?.id;
         desc.fragment.module = this.getResInfo(desc.fragment.module)?.id;
-        break;
-      case 'computePipeline':
-        desc.compute.module = this.getResInfo(desc.compute.module)?.id;
         break;
       case 'bufferDataMap':
         const bufferMap = this.getResInfo(resource)?.desc;
@@ -75,48 +71,44 @@ export class ResourceTracker {
           this.untrack(desc.arrayBuffer);
         }
         break;
-      case 'bindGroup':
-        const bindID = this.getResInfo(desc.layout)?.id;
-        if ( bindID ) {
-          desc.layout = bindID;
-        }
-        // if(desc.entries){
-        //   desc.entries.forEach(entry: any => {
-        //     if (entry.resource.buffer){
-        //       const bufferid = this.getResInfo(entry.resource.buffer)?.id;
-        //       if(bufferid) {
-        //         entry.resource = bufferid;
-        //       }
-        //     } else if(entry.resource) {
-        //       const resourceid = this.getResInfo(entry.resource)?.id;
-        //       if(resourceid) {
-        //         entry.resource = resourceid;
-        //       }
-        //     }
-        //   });
-        // }
-        break;
-      case 'pipelineLayout':
-        if(desc.bindGroupLayouts) {
-          let layoutArray:number[] = [];
-          desc.bindGroupLayouts.forEach((layout: any) => {
-            const bindID = this.getResInfo(layout)?.id;
-            if ( bindID ) {
-              layoutArray.push(bindID);
-            } else {
-              throw new Error(`bindGroupLayouts not found`);
-            }
-          });
-          desc.bindGroupLayouts = layoutArray;
-          console.log('[res]pipelineLayoutdesc', desc);
-        }
+      default:
+        this.replaceResourcesInDesc(desc);
         break;
     }
-
+    // 跟踪资源
+    this.resourceIDMap.set(id, resource);
     this.resourceMap.set(resource, { id, type, desc });
     return id;
   }
 
+  /**
+   * @brief 替换描述中的资源引用为 ID
+   * @param obj 需要遍历的对象
+   * @todo 优化，WeakSet 记录被替换的资源，避免重复替换
+   */
+  private replaceResourcesInDesc(obj: any): void {
+    const traverse = (currentObj: any) => {
+      if (typeof currentObj !== 'object' || currentObj === null) return;
+      if (Array.isArray(currentObj)) {
+        currentObj.forEach(item => traverse(item));
+      } else {
+        Object.entries(currentObj).forEach(([key, value]) => {
+          if (this.resourceMap.has(value)) {
+            currentObj[key] = this.getResID(value);
+          } else if (typeof value === 'object') {
+            traverse(value);
+          }
+        });
+      }
+    };
+    traverse(obj);
+  }
+
+  /**
+   * @brief 获取资源信息
+   * @param resource  
+   * @returns ResourceInfo
+   */
   getResInfo(resource : any) {
     if(this.resourceMap.has(resource)){
       return this.resourceMap.get(resource);
@@ -125,7 +117,11 @@ export class ResourceTracker {
     }
   }
 
-  
+  /**
+   * @brief 获取资源 ID
+   * @param resource 
+   * @returns resourceID or undefined
+   */
   getResID(resource : any) {
     if(this.resourceMap.has(resource)){
       return this.resourceMap.get(resource)?.id;
@@ -134,6 +130,11 @@ export class ResourceTracker {
     }
   }
   
+  /**
+   * @brief 根据 ID 获取资源
+   * @param id 
+   * @returns resource or undefined
+   */
   getResFromID(id : number) {
     if(this.resourceIDMap.has(id)){
       return this.resourceIDMap.get(id);
