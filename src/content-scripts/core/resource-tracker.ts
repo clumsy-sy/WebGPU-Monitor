@@ -110,11 +110,11 @@ export class ResourceTracker {
    * @returns ResourceInfo
    */
   getResInfo(resource : any) {
-    if(this.resourceMap.has(resource)){
+    // if(this.resourceMap.has(resource)){
       return this.resourceMap.get(resource);
-    } else {
-      this.msg.error('[res]getResInfo : resource not found', resource);
-    }
+    // } else {
+    //   this.msg.error('[res]getResInfo : resource not found', resource);
+    // }
   }
 
   /**

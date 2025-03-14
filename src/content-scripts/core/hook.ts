@@ -1,12 +1,16 @@
 import { FrameRecorder } from "./frame-recorder";
 import { MsgType, Msg } from "../../global/message";
 import { GPUDeviceHook } from "./hooks/gpu-device";
+import { ResourceTracker } from "./resource-tracker";
+import { CommandTracker } from "./command-tracker";
 
 let frameCnt = 0;
 let lastFrameTime = performance.now();
-let Recoder = FrameRecorder.getInstance();
 let lastUrl = location.href;
 const msg = Msg.getInstance();
+let recoder = FrameRecorder.getInstance();
+const res = ResourceTracker.getInstance();
+const cmd = CommandTracker.getInstance();
 
 /**
  * @brief 注入帧钩子函数
@@ -23,7 +27,7 @@ function installFrameHooks() {
       if (lastUrl !== location.href) {
         lastUrl = location.href;
         frameCnt = 0;
-        Recoder.reset();
+        recoder.reset();
       }
       // fixme callback 可能发生变化
 
@@ -50,23 +54,23 @@ function installFrameHooks() {
       }
 
       // 截帧结束
-      if (Recoder.captureState.active) {
+      if (recoder.captureState.active) {
         msg.sendMessage( MsgType.Captures_end, "Capture frame finish!", {signal: false} );
         
-        Recoder.captureState.msg = false;
-        Recoder.captureState.active = false;
-        Recoder.setFrameEndTime(performance.now());
+        recoder.captureState.msg = false;
+        recoder.captureState.active = false;
+        recoder.setFrameEndTime(performance.now());
         // 输出数据
-        msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(Recoder.outputFrame()));
-        Recoder.jsonLog();
-        Recoder.clear();
+        msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(recoder.outputFrame()));
+        recoder.jsonLog();
+        recoder.clear();
       }
 
       // 开始截帧
-      if (Recoder.captureState.msg) {
+      if (recoder.captureState.msg) {
         console.log(`[main] Capture frame [id=${frameCnt}] `);
-        Recoder.captureState.active = true;
-        Recoder.setFrameStartTime(performance.now());
+        recoder.captureState.active = true;
+        recoder.setFrameStartTime(performance.now());
       }
       
       return result;
@@ -76,11 +80,10 @@ function installFrameHooks() {
 
 /**
  * @description 捕获 TypedArray 的构造函数，并记录缓冲区类型
- * ***可能还缺少类型，需要补
  */
 function hookType() {
-  // 保存原始构造函数
-  const originalTypedArrayConstructors = {
+  // 明确类型注解
+  const originalTypedArrayConstructors: Record<string, Function> = {
     Float32Array: window.Float32Array,
     Uint32Array: window.Uint32Array,
     Uint16Array: window.Uint16Array,
@@ -88,41 +91,38 @@ function hookType() {
     BigInt64Array: window.BigInt64Array,
   };
 
-  Object.keys(originalTypedArrayConstructors).forEach(type => {
-    const OriginalConstructor = originalTypedArrayConstructors[type as keyof typeof originalTypedArrayConstructors];
-    
-    // 1. 创建 Proxy 代理
+  Object.keys(originalTypedArrayConstructors).forEach((typeName) => {
+    const OriginalConstructor = originalTypedArrayConstructors[typeName] as 
+      new (...args: any[]) => ArrayBufferView;
+
+    // 修正 Proxy 的 target 使用
     const ProxyConstructor = new Proxy(OriginalConstructor, {
-      construct(target, args) {
-        // 自定义逻辑：记录缓冲区类型
+      construct(target, args, newTarget) {
+        // 使用 target 代替 OriginalConstructor（更符合 Proxy 语义）
         if (args[0] instanceof ArrayBuffer && args.length === 1) {
-          const mappedRangeID = Recoder.getResInfo(args[0])?.id;
+          const mappedRangeID = res.getResID(args[0]); // 非空断言
           if (mappedRangeID) {
-            Recoder.trackRes(args[0], 'bufferDataMap', { type: type });
+            recoder.trackRes!(args[0], 'bufferDataMap', { type: typeName }); // 非空断言
           }
         }
-        
-        // 调用原始构造函数
-        return new OriginalConstructor(...args);
+
+        return new (target as any)(...args); // 显式类型断言
       }
     });
-  
-    // 2. 复制静态属性 (BYTES_PER_ELEMENT 等)
-    Object.keys(OriginalConstructor).forEach(staticProp => {
-      const key = staticProp as keyof typeof OriginalConstructor;
-      if (OriginalConstructor.hasOwnProperty(key)) {
-        // 跳过只读属性或特殊属性
-        if (key === 'prototype') return;
-        // 获取原始属性的描述符
-        const descriptor = Object.getOwnPropertyDescriptor(OriginalConstructor, key);
-        if (descriptor) {
-          Object.defineProperty(ProxyConstructor, key, descriptor);
-        }
+
+    // 静态属性处理优化
+    const originalConstructor = OriginalConstructor as any;
+    Object.getOwnPropertyNames(OriginalConstructor).forEach(staticProp => {
+      if (staticProp === 'prototype') return;
+
+      const descriptor = Object.getOwnPropertyDescriptor(originalConstructor, staticProp);
+      if (descriptor) {
+        Object.defineProperty(ProxyConstructor, staticProp, descriptor);
       }
     });
-  
-    // 3. 覆盖全局构造函数
-    // window[type] = ProxyConstructor;
+
+    // 全局覆盖时的类型兼容处理
+    (window as any)[typeName] = ProxyConstructor;
   });
 }
 
@@ -134,7 +134,7 @@ function hookGPUCanvasContext(){
   const originalCanvasConf = GPUCanvasContext.prototype.configure;
   GPUCanvasContext.prototype.configure = function (configuration) {
     const ret = originalCanvasConf.call(this, configuration);
-    Recoder.trackCanvasConf(configuration);
+    recoder.trackCanvasConf(configuration);
     return ret;
   };
 
@@ -144,8 +144,8 @@ function hookGPUCanvasContext(){
     const texture = originalGetCurrentTexture.call(this);
     
     // 标记为 Canvas 交换链纹理
-    Recoder.setFrameSize(this.canvas.width, this.canvas.height);
-    // Recoder.trackRes(texture, 'canvasTexture', {
+    recoder.setFrameSize(this.canvas.width, this.canvas.height);
+    // recoder.trackRes(texture, 'canvasTexture', {
     //   canvas: this.canvas,
     //   format: this.canvasFormat
     // });
@@ -163,7 +163,7 @@ function hookGPUAdapter() {
     navigator.gpu.requestAdapter = async function(options) {
       try {
         const adapter = await originalRequestAdapter.call(navigator.gpu, options);
-        Recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
+        recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
         
         if (adapter) {
           // hook requestDevice()
@@ -171,8 +171,9 @@ function hookGPUAdapter() {
           adapter.requestDevice = async function(descriptor?: GPUDeviceDescriptor) {
             try {
               const device = await originalRequestDevice.call(adapter, descriptor);
+              // [hook device]
               GPUDeviceHook.hookDevice(device);
-              Recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);  
+              recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);  
               return device;
             } catch (error) {
               console.error('Error in requestDevice:', error);
@@ -189,9 +190,6 @@ function hookGPUAdapter() {
     };
 }
 
-function hookGPUDevice() {
-
-}
 
 
 /**
@@ -207,9 +205,9 @@ export function hookInit() {
   }
 
   
-  // hookType();
+  hookType();
 
-  // hookGPUCanvasContext();
+  hookGPUCanvasContext();
   hookGPUAdapter();
   // hookGPUDevice();
 
