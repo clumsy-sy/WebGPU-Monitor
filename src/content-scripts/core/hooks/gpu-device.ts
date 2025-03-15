@@ -1,17 +1,24 @@
 import { Msg } from "../../../global/message";
 import { APIRecorder } from "../api-recorder";
+import { CommandTracker } from "../command-tracker";
 import { FrameRecorder } from "../frame-recorder";
 import { ResourceTracker } from "../resource-tracker";
 import { GPUCommandEncoderHook } from "./gpu-command-encoder";
 
 export class GPUDeviceHook {
-  private static tracker = ResourceTracker.getInstance();
+  private static res = ResourceTracker.getInstance();
   private static msg = Msg.getInstance();
+  private static cmd = CommandTracker.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
   private static recoder = FrameRecorder.getInstance();
   
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private static activeFlag: boolean = false;
+  private static hookedEncoder: number = 0;
+  private static hookedEncoderMap: {
+    encoder: GPUCommandEncoder, 
+    hook: GPUCommandEncoderHook
+  }[] = [];
   // 钩子入口方法
   static hookDevice<T extends GPUDevice>(device: T, methodsList: string[] = []): T {
     const proto = Object.getPrototypeOf(device);
@@ -64,7 +71,7 @@ export class GPUDeviceHook {
       GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
       try {
         const result = originalMethod.apply(this, args);
-        GPUDeviceHook.tracker.track(result, args, methodName);
+        GPUDeviceHook.res.track(result, args, methodName);
         GPUDeviceHook.APIrecorder.recordMethodCall(methodName, args);
         return result;
       } catch (error) {
@@ -83,27 +90,12 @@ export class GPUDeviceHook {
     this.hookedMethods.get(proto)?.set(methodName, originalMethod);
   }
 
-  static unhookGPUDevice<T extends GPUDevice>(device: T): T {
-    const proto = Object.getPrototypeOf(device);
-
-    // 遍历所有被劫持的方法并恢复
-    const protoMethods = this.hookedMethods.get(proto);
-    if (protoMethods) {
-      protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
-      });
-      this.hookedMethods.delete(proto);
-    }
-
-    return device;
-  }
-
   private static hookBuffer(proto: any) { 
     const originalMethod = proto['createBuffer'];
     proto['createBuffer'] = function wrappedMethod(descriptor:any) {
       try {
         const buffer = originalMethod.apply(this, [descriptor]);
-        GPUDeviceHook.tracker.track(buffer, descriptor, 'createBuffer');
+        GPUDeviceHook.res.track(buffer, descriptor, 'createBuffer');
         GPUDeviceHook.APIrecorder.recordMethodCall('createBuffer', [descriptor]);
         
         if (descriptor.mappedAtCreation) {
@@ -112,7 +104,7 @@ export class GPUDeviceHook {
           
           buffer.getMappedRange = function(...args: any[]) {
             mappedRange = originalGetMappedRange.apply(this, args);
-            GPUDeviceHook.tracker.track(mappedRange, { buffer: buffer }, 'bufferDataMap', );
+            GPUDeviceHook.res.track(mappedRange, { buffer: buffer }, 'bufferDataMap', );
             GPUDeviceHook.APIrecorder.recordMethodCall('getMappedRange', args);
             return mappedRange;
           };
@@ -121,7 +113,7 @@ export class GPUDeviceHook {
           const originalUnmap = buffer.unmap;
           buffer.unmap = function() {
             if (mappedRange) {
-              GPUDeviceHook.tracker.track(mappedRange, {
+              GPUDeviceHook.res.track(mappedRange, {
                 arrayBuffer: mappedRange,
                 data: mappedRange
               }, 'bufferData');
@@ -150,12 +142,23 @@ export class GPUDeviceHook {
       try {
         const encoder = originalMethod.apply(this, [descriptor]);
         if (GPUDeviceHook.recoder.captureState.active){
-          GPUDeviceHook.tracker.track(encoder, descriptor, 'createCommandEncoder');
+          // 记录 cmd
+          GPUDeviceHook.cmd.recordEncoderCreate(GPUDeviceHook.hookedEncoder, descriptor);
+          // 记录 api
           GPUDeviceHook.APIrecorder.recordMethodCall('createCommandEncoder', [descriptor]);
-          GPUCommandEncoderHook.hookGPUCommandEncoder(encoder);
+          // 创建hookEncoder, 并hook
+          const hook = new GPUCommandEncoderHook(GPUDeviceHook.hookedEncoder);
+          hook.hookGPUCommandEncoder(encoder);
+          this.hookedEncoder++;
+          GPUDeviceHook.hookedEncoderMap.push({encoder, hook});
+
           GPUDeviceHook.activeFlag = true;
         } else if (GPUDeviceHook.activeFlag) {
-          GPUCommandEncoderHook.unhookGPUCommandEncoder(encoder);
+          // 遍历所有 encoder，unhook
+          for (let {encoder, hook} of GPUDeviceHook.hookedEncoderMap) {
+            hook.unhookGPUCommandEncoder(encoder);
+          }
+          
           GPUDeviceHook.activeFlag = false;
         }
         return encoder;
@@ -172,6 +175,21 @@ export class GPUDeviceHook {
     this.hookedMethods.get(proto)?.set('createCommandEncoder', originalMethod);
   }
 
+  static unhookGPUDevice<T extends GPUDevice>(device: T): T {
+    const proto = Object.getPrototypeOf(device);
+
+    // 遍历所有被劫持的方法并恢复
+    const protoMethods = this.hookedMethods.get(proto);
+    if (protoMethods) {
+      protoMethods.forEach((original, methodName) => {
+        proto[methodName] = original;
+      });
+      this.hookedMethods.delete(proto);
+    }
+
+    return device;
+  }
+
   // 绑定资源销毁监听
   // private static bindDestroyHook(
   //   resource: GPUObjectBase,
@@ -180,7 +198,7 @@ export class GPUDeviceHook {
   //   const originalDestroy = resource.destroy.bind(resource);
     
   //   resource.destroy = function wrappedDestroy() {
-  //     GPUDeviceHook.tracker.logRelease({
+  //     GPUDeviceHook.res.logRelease({
   //       type: methodName,
   //       id: resource.toString(),
   //       timestamp: performance.now()

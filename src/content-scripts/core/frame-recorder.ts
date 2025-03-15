@@ -108,7 +108,8 @@ export class FrameRecorder {
       CanvasConfiguration: this.CanvasConf,
       AdapterOptions: this.AdapterOptions,
       deviceDescriptor: this.deviceDesc,
-      resource: this.res.getAllResources(),
+      // resource: this.res.getAllResources(),
+      resource: this.res.getAllResourcesValues(),
       command: this.cmd.getAllCmds(),
     };
     return frame;

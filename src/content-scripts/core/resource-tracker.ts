@@ -87,21 +87,52 @@ export class ResourceTracker {
    * @todo 优化，WeakSet 记录被替换的资源，避免重复替换
    */
   private replaceResourcesInDesc(obj: any): void {
-    const traverse = (currentObj: any) => {
-      if (typeof currentObj !== 'object' || currentObj === null) return;
-      if (Array.isArray(currentObj)) {
-        currentObj.forEach(item => traverse(item));
+    const traverse = (currentItem: any , parent: any, key: number | string | null) => {
+      // 首先检查当前项是否是资源实例
+      if (this.resourceMap.has(currentItem)) {
+        if (parent && key !== null) {
+          parent[key] = this.getResID(currentItem); // 直接替换为ID
+        }
+        return;
+      }
+      // 非对象或null则跳过
+      if (typeof currentItem !== 'object' || currentItem === null) return;
+      // 处理数组
+      if (Array.isArray(currentItem)) {
+        currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
       } else {
-        Object.entries(currentObj).forEach(([key, value]) => {
-          if (this.resourceMap.has(value)) {
-            currentObj[key] = this.getResID(value);
-          } else if (typeof value === 'object') {
-            traverse(value);
-          }
+        Object.entries(currentItem).forEach(([k, v]) => {
+          traverse(v, currentItem, k);
         });
       }
     };
-    traverse(obj);
+    traverse(obj, null, null);
+  }
+
+  // 在 ResourceTracker 类中添加以下方法
+  replaceResourcesInArray(arr: any[]): void {
+    const traverse = (currentItem: any , parent: any, key: number | string | null) => {
+      // 首先检查当前项是否是资源实例
+      if (this.resourceMap.has(currentItem)) {
+        if (parent && key !== null) {
+          parent[key] = this.getResID(currentItem); // 直接替换为ID
+        }
+        return;
+      }
+      // 非对象或null则跳过
+      if (typeof currentItem !== 'object' || currentItem === null) return;
+      // 处理数组
+      if (Array.isArray(currentItem)) {
+        currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
+      } else {
+        Object.entries(currentItem).forEach(([k, v]) => {
+          traverse(v, currentItem, k);
+        });
+      }
+    };
+    arr.forEach((item, index) => {
+      traverse(item, arr, index);
+    });
   }
 
   /**

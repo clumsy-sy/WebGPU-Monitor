@@ -36,7 +36,7 @@ export type ResourceType = typeof ResourceTypeEnum[keyof typeof ResourceTypeEnum
 export interface cmdInfo {
   eid: number;
   type: string;
-  args: any;
+  args: any[];
   time: number;
 }
 
