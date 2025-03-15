@@ -3,6 +3,7 @@ import { MsgType, Msg } from "../../global/message";
 import { GPUDeviceHook } from "./hooks/gpu-device";
 import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
+import { APIRecorder } from "./api-recorder";
 
 let frameCnt = 0;
 let lastFrameTime = performance.now();
@@ -11,6 +12,7 @@ const msg = Msg.getInstance();
 let recoder = FrameRecorder.getInstance();
 const res = ResourceTracker.getInstance();
 const cmd = CommandTracker.getInstance();
+const api = APIRecorder.getInstance();
 
 /**
  * @brief 注入帧钩子函数
@@ -102,7 +104,7 @@ function hookType() {
         if (args[0] instanceof ArrayBuffer && args.length === 1) {
           const mappedRangeID = res.getResID(args[0]); // 非空断言
           if (mappedRangeID) {
-            recoder.trackRes!(args[0], 'bufferDataMap', { type: typeName }); // 非空断言
+            res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
           }
         }
 
@@ -140,16 +142,37 @@ function hookGPUCanvasContext(){
 
   // 获取当前 canvas纹理
   const originalGetCurrentTexture = GPUCanvasContext.prototype.getCurrentTexture;
-  GPUCanvasContext.prototype.getCurrentTexture = function() {
+  GPUCanvasContext.prototype.getCurrentTexture = function () {
     const texture = originalGetCurrentTexture.call(this);
-    
-    // 标记为 Canvas 交换链纹理
-    recoder.setFrameSize(this.canvas.width, this.canvas.height);
-    // recoder.trackRes(texture, 'canvasTexture', {
-    //   canvas: this.canvas,
-    //   format: this.canvasFormat
-    // });
-    
+    res.track(texture, {}, 'getCurrentTexture');
+    api.recordMethodCall('getCurrentTexture', []);
+    if(texture) {
+      // 劫持 texture.createView
+      const originalCreateView = texture.createView;
+      texture.createView = function wrappedMethod(descriptor:any) {
+        try {
+          const view = originalCreateView.apply(this, [descriptor]);
+          res.track(view, {parent:texture, descriptor}, 'createTextureView');
+          api.recordMethodCall('createTextureView', [descriptor]);
+          return view;
+        } catch (error) {
+          msg.error(`[GPUDevice] createTextureView error: `, error);
+          throw error;
+        }
+      }
+      // 劫持 texture.destroy
+      const originalDestroy = texture.destroy;
+      texture.destroy = function wrappedMethod() {
+        try {
+          originalDestroy.apply(this, []);
+          res.untrack(texture);
+          // todo: 删除纹理对应的视图
+          api.recordMethodCall('destroy', []);
+        } catch (error) {
+          msg.error(`[GPUDevice] destroy error: `, error);
+        }
+      }
+    }
     return texture;
   };
 

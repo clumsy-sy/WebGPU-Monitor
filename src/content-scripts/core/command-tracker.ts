@@ -56,6 +56,7 @@ export class RenderPassTracker{
 
   constructor(eid:number, desc?: GPURenderPassDescriptor){
     this.startEid = eid;
+    RenderPassTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
   }
 
@@ -128,6 +129,7 @@ export class ComputePassTracker{
 
   constructor(eid: number, desc?: GPUComputePassDescriptor){
     this.startEid = eid;
+    ComputePassTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
   }
 
@@ -198,6 +200,7 @@ export class EncoderTracker{
   constructor(id: number, desc?: GPUCommandEncoderDescriptor){
     this.EncoderID = id;
     this.timeStamp = performance.now();
+    EncoderTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
   }
 
@@ -339,9 +342,11 @@ export class CommandTracker{
   CmdQueue: (EncoderTracker|cmdInfo)[] = [];
   CmdMap: Map<number, EncoderTracker> = new Map();
 
+  // todo sort cmd
   recordCmd(type: string, args: any[]){
     let eid: number = this.Eid++;
     let time: number = performance.now();
+    CommandTracker.res.replaceResourcesInArray(args);
     const cmd: cmdInfo = { eid, type, args, time }
     this.CmdQueue.push(cmd);
   }

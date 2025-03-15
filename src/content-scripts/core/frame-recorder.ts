@@ -1,6 +1,7 @@
 import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
 import { Msg } from "../../global/message";
+import { APIRecorder } from "./api-recorder";
 
 
 export class FrameRecorder {
@@ -32,6 +33,7 @@ export class FrameRecorder {
 
   res = ResourceTracker.getInstance();
   cmd = CommandTracker.getInstance();
+  api = APIRecorder.getInstance();
 
   CanvasConf: GPUCanvasConfiguration|null = null;
   AdapterOptions: GPURequestAdapterOptions|null = null;
@@ -86,18 +88,6 @@ export class FrameRecorder {
     this.deviceDesc = desc;
   }
 
-  trackRes(resource: any, type: string, descriptor: any) {
-    this.res.track(resource, descriptor, type);
-  }
-
-  trackCmd(type: string, args: any){
-    this.cmd.recordCmd(type, args);
-  }
-
-  getResInfo(resource: any) {
-    return this.res.getResInfo(resource);
-  }
-
   outputFrame() {
     let frame = {
       frameID: this.curFrame,
@@ -111,6 +101,7 @@ export class FrameRecorder {
       // resource: this.res.getAllResources(),
       resource: this.res.getAllResourcesValues(),
       command: this.cmd.getAllCmds(),
+      // api: this.api.getAllRecords(),
     };
     return frame;
   }

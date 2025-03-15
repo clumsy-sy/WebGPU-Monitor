@@ -11,6 +11,7 @@ import { GPUComputePassEncoderHook, GPURenderPassEncoderHook } from "./gpu-pass-
 export class GPUCommandEncoderHook {
   private static cmd = CommandTracker.getInstance();
   private static msg = Msg.getInstance();
+  private static res = ResourceTracker.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
   
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
@@ -38,7 +39,7 @@ export class GPUCommandEncoderHook {
       'copyBufferToTexture',
       'copyTextureToBuffer',
       'copyTextureToTexture',
-      'finish',
+      // 'finish',
       // 添加其他需要拦截的方法...
       ...methodsList
     ];
@@ -51,6 +52,7 @@ export class GPUCommandEncoderHook {
     // 特殊处理
     this.hookBeginRenderPass(proto);
     this.hookBeginComputePass(proto);
+    this.hookFinish(proto);
 
     return cmdencoder;
   }
@@ -162,6 +164,28 @@ export class GPUCommandEncoderHook {
     GPUCommandEncoderHook.hookedMethods.get(proto)?.set('beginComputePass', originalMethod);
   }
 
+  private hookFinish(proto: any) {
+    const self_this = this;
+    const originalMethod = proto['finish'];
+    proto['finish'] = function wrappedMethod(descriptor:any) {
+      try {
+        const commandbuffer = originalMethod.apply(this, [descriptor]);
+        GPUCommandEncoderHook.cmd.recordEncodercmd(self_this.curEncoderID, 'finish', [descriptor]);
+        GPUCommandEncoderHook.APIrecorder.recordMethodCall('finish', [descriptor]);
+        GPUCommandEncoderHook.res.track(commandbuffer, descriptor, 'GPUCommandBuffer');
+        return commandbuffer;
+      } catch (error) {
+        GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] finish error: `, error);
+        throw error;
+      }
+    }
+
+    if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
+      GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
+    }
+    GPUCommandEncoderHook.hookedMethods.get(proto)?.set('finish', originalMethod);
+  }
+
   // 复原函数入口方法
   unhookGPUCommandEncoder<T extends GPUCommandEncoder>(cmdencoder: T): T {
     const proto = Object.getPrototypeOf(cmdencoder);
@@ -169,7 +193,7 @@ export class GPUCommandEncoderHook {
     if (protoMethods) {
       protoMethods.forEach((original, methodName) => {
         proto[methodName] = original;
-        GPUCommandEncoderHook.msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
+        // GPUCommandEncoderHook.msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
       });
       GPUCommandEncoderHook.hookedMethods.delete(proto);
     }
@@ -183,7 +207,6 @@ export class GPUCommandEncoderHook {
         hook.unhookGPURenderPassEncoder(pass as GPURenderPassEncoder);
       }
     }
-
     return cmdencoder;
   }
 

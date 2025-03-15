@@ -38,7 +38,7 @@ export class GPUDeviceHook {
       'createRenderPipelineAsync',
       'createSampler',
       'createShaderModule',
-      'createTexture',
+      // 'createTexture',
       // 添加其他需要拦截的方法...
       ...methodsList
     ];
@@ -50,9 +50,13 @@ export class GPUDeviceHook {
     // 特殊处理
     // 'createBuffer'
     this.hookBuffer(proto);
-
+    // 'createTexture'
+    this.hookTexture(proto);
     // 'createCommandEncoder'
     this.hookCommandEncoder(proto);
+
+    // queue
+    this.hookGPUQueue(device.queue, []);
 
     return device;
   }
@@ -68,7 +72,7 @@ export class GPUDeviceHook {
 
     // 创建包装器并替换方法
     proto[methodName] = function wrappedMethod(...args: any[]) {
-      GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
+      // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
       try {
         const result = originalMethod.apply(this, args);
         GPUDeviceHook.res.track(result, args, methodName);
@@ -136,6 +140,53 @@ export class GPUDeviceHook {
     this.hookedMethods.get(proto)?.set('createBuffer', originalMethod);
   }
 
+  private static hookTexture(proto: any) {
+    const originalMethod = proto['createTexture'];
+    proto['createTexture'] = function wrappedMethod(descriptor:any) {
+      try {
+        const texture = originalMethod.apply(this, [descriptor]);
+        GPUDeviceHook.res.track(texture, descriptor, 'createTexture');
+        GPUDeviceHook.APIrecorder.recordMethodCall('createTexture', [descriptor]);
+        
+        if(texture) {
+          // 劫持 texture.createView
+          const originalCreateView = texture.createView;
+          texture.createView = function wrappedMethod(descriptor:any) {
+            try {
+              const view = originalCreateView.apply(this, [descriptor]);
+              GPUDeviceHook.res.track(view, {parent: texture, descriptor}, 'createTextureView');
+              GPUDeviceHook.APIrecorder.recordMethodCall('createTextureView', [descriptor]);
+              return view;
+            } catch (error) {
+              GPUDeviceHook.msg.error(`[GPUDevice] createTextureView error: `, error);
+              throw error;
+            }
+          }
+          // 劫持 texture.destroy
+          const originalDestroy = texture.destroy;
+          texture.destroy = function wrappedMethod() {
+            try {
+              originalDestroy.apply(this, []);
+              GPUDeviceHook.res.untrack(texture);
+              // todo: 删除纹理对应的视图
+              GPUDeviceHook.APIrecorder.recordMethodCall('destroy', []);
+            } catch (error) {
+              GPUDeviceHook.msg.error(`[GPUDevice] destroy error: `, error);
+            }
+          }
+        }
+        
+        return texture;
+      } catch (error) {
+        GPUDeviceHook.msg.error(`[GPUDevice] createTexture error: `, error);
+      }
+    }
+    if (!this.hookedMethods.has(proto)) {
+      this.hookedMethods.set(proto, new Map());
+    }
+    this.hookedMethods.get(proto)?.set('createTexture', originalMethod);
+  }
+
   private static hookCommandEncoder(proto: any) {
     const originalMethod = proto['createCommandEncoder'];
     proto['createCommandEncoder'] = function wrappedMethod(descriptor:any) {
@@ -175,6 +226,59 @@ export class GPUDeviceHook {
     this.hookedMethods.get(proto)?.set('createCommandEncoder', originalMethod);
   }
 
+  static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = []): T {
+    const proto = Object.getPrototypeOf(queue);
+
+    const methodsToHook: string[] = [
+      'copyExternalImageToTexture',
+      'onSubmittedWorkDone',
+      'submit',
+      'writeBuffer',
+      'writeTexture',
+      // 添加其他需要拦截的方法...
+      ...methodsList
+    ];
+
+    methodsToHook.forEach(methodName => {
+      this.hookQueueMethod(proto, methodName);
+    });
+
+    return queue
+  }
+
+  private static hookQueueMethod( proto: any, methodName: string ) {
+    const originalMethod = proto[methodName];
+    
+    // 验证方法存在
+    if (!originalMethod) {
+      throw new Error(`Method ${methodName} not found on GPUDevice`);
+    }
+
+    // 创建包装器并替换方法
+    proto[methodName] = function wrappedMethod(...args: any[]) {
+      // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
+      try {
+        const result = originalMethod.apply(this, args);
+        // todo: writebuffer ... don't need active
+        if(GPUDeviceHook.recoder.captureState.active){
+          GPUDeviceHook.cmd.recordCmd(methodName, args);
+          GPUDeviceHook.APIrecorder.recordMethodCall(methodName, args);
+        }
+        return result;
+      } catch (error) {
+        GPUDeviceHook.msg.error(`[GPUDevice] ${methodName} error: `, error);
+        throw error;
+      }
+    };
+
+    if (!this.hookedMethods.has(proto)) {
+      this.hookedMethods.set(proto, new Map());
+    }
+
+    // 保存原始方法引用
+    this.hookedMethods.get(proto)?.set(methodName, originalMethod);
+  }
+
   static unhookGPUDevice<T extends GPUDevice>(device: T): T {
     const proto = Object.getPrototypeOf(device);
 
@@ -188,6 +292,20 @@ export class GPUDeviceHook {
     }
 
     return device;
+  }
+
+  static unhookGPUQueue<T extends GPUQueue>(queue: T): T {
+    const proto = Object.getPrototypeOf(queue);
+
+    // 遍历所有被劫持的方法并恢复
+    const protoMethods = this.hookedMethods.get(proto);
+    if (protoMethods) {
+      protoMethods.forEach((original, methodName) => {
+        proto[methodName] = original;
+      });
+      this.hookedMethods.delete(proto);
+    }
+    return queue;
   }
 
   // 绑定资源销毁监听

@@ -71,7 +71,7 @@ export class ResourceTracker {
           this.untrack(desc.arrayBuffer);
         }
         break;
-      default:
+        default:
         this.replaceResourcesInDesc(desc);
         break;
     }
@@ -86,7 +86,7 @@ export class ResourceTracker {
    * @param obj 需要遍历的对象
    * @todo 优化，WeakSet 记录被替换的资源，避免重复替换
    */
-  private replaceResourcesInDesc(obj: any): void {
+  replaceResourcesInDesc(obj: any): void {
     const traverse = (currentItem: any , parent: any, key: number | string | null) => {
       // 首先检查当前项是否是资源实例
       if (this.resourceMap.has(currentItem)) {
