@@ -173,7 +173,7 @@ export class GPURenderPassEncoderHook {
 
     // 创建包装器并替换方法
     proto[methodName] = function wrappedMethod(...args: any[]) {
-      GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} hooked`);
+      // GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
@@ -206,7 +206,7 @@ export class GPURenderPassEncoderHook {
     if (protoMethods) {
       protoMethods.forEach((original, methodName) => {
         proto[methodName] = original;
-        GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} unhooked`);
+        // GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} unhooked`);
       });
       GPURenderPassEncoderHook.hookedMethods.delete(proto);
     }

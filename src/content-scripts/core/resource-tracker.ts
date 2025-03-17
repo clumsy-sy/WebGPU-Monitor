@@ -30,54 +30,41 @@ export class ResourceTracker {
    * @returns 
    */
   track(resource: any, desc: any, type = 'res') {
-    const id = Utils.genUniqueNumber();
+    let id: number = 0;
     switch (type) {
       case 'pipeline':
+        id = Utils.genUniqueNumber();
         if(desc.layout != 'auto') {
           this.replaceResourcesInDesc(desc);
         }
         desc.vertex.module = this.getResInfo(desc.vertex.module)?.id;
         desc.fragment.module = this.getResInfo(desc.fragment.module)?.id;
         break;
-      case 'bufferDataMap':
-        const bufferMap = this.getResInfo(resource)?.desc;
-        if(bufferMap) {
-          const type = desc.type;
-          desc = {
-            bufferid: bufferMap.bufferid,
-            type: type,
-          }
-          this.untrack(resource);
-        } else {
-          let bufferid = this.getResInfo(desc.buffer)?.id;
-          if(bufferid) {
-            desc = { bufferid: bufferid}
-          } else {
-            throw new Error(`bufferMap not found`);
-          }
-        }
-        break;
       case 'bufferData':
-        const buffermap = this.getResInfo(desc.arrayBuffer)?.desc;
-        console.log('[buffermap]', buffermap);
-        if(buffermap) {
-          const data = desc.data;
-          const type = buffermap.type;
-          desc = {
-            id: buffermap.bufferid, 
-            type: type,
-            data: [...new (globalThis as any)[type](data)]
-          };
-          this.untrack(desc.arrayBuffer);
+        if(this.resourceMap.has(desc.buffer)) {
+          id = this.getResID(desc.buffer) as number;
+          const bufferResInfo = this.getResInfo(desc.buffer);
+          if(bufferResInfo) {
+            bufferResInfo.data = desc.data;
+          }
+          // 修改后直接返回
+          return id;
+        } else {
+          this.msg.error(`[bufferData] bufferDataMap not found`);
         }
         break;
-        default:
+      default:
+        id = Utils.genUniqueNumber();
         this.replaceResourcesInDesc(desc);
         break;
     }
     // 跟踪资源
-    this.resourceIDMap.set(id, resource);
-    this.resourceMap.set(resource, { id, type, desc });
+    if(id !== 0) {
+      this.resourceIDMap.set(id, resource);
+      this.resourceMap.set(resource, { id, type, desc});
+    } else {
+      this.msg.error(`[res]track : resource no id`);
+    }
     return id;
   }
 

@@ -35,9 +35,9 @@ export class FrameRecorder {
   cmd = CommandTracker.getInstance();
   api = APIRecorder.getInstance();
 
-  CanvasConf: GPUCanvasConfiguration|null = null;
-  AdapterOptions: GPURequestAdapterOptions|null = null;
-  deviceDesc: GPUDeviceDescriptor|null = null;
+  CanvasConf: GPUCanvasConfiguration|{} = {};
+  AdapterOptions: GPURequestAdapterOptions|{} = {};
+  deviceDesc: GPUDeviceDescriptor|{} = {};
 
   setFrameStartTime(time: number) {
     this.frameStartTime = time;
@@ -81,11 +81,11 @@ export class FrameRecorder {
   }
 
   trackAdapterOptions(options: GPURequestAdapterOptions) {
-    this.AdapterOptions = options;
+    this.AdapterOptions = {options};
   }
 
   trackDeviceDesc(desc: GPUDeviceDescriptor) {
-    this.deviceDesc = desc;
+    this.deviceDesc = {desc};
   }
 
   outputFrame() {
@@ -116,5 +116,4 @@ export class FrameRecorder {
     }, 2));
     this.msg.log("[Frame]-------------------------------");
   }
-
 }

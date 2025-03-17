@@ -83,50 +83,125 @@ function installFrameHooks() {
 /**
  * @description 捕获 TypedArray 的构造函数，并记录缓冲区类型
  */
-function hookType() {
-  // 明确类型注解
-  const originalTypedArrayConstructors: Record<string, Function> = {
-    Float32Array: window.Float32Array,
-    Uint32Array: window.Uint32Array,
-    Uint16Array: window.Uint16Array,
-    Uint8Array: window.Uint8Array,
-    BigInt64Array: window.BigInt64Array,
-  };
+// function hookType() {
+//   // 明确类型注解
+//   const originalTypedArrayConstructors: Record<string, Function> = {
+//     Float32Array: window.Float32Array,
+//     Uint32Array: window.Uint32Array,
+//     Uint16Array: window.Uint16Array,
+//     Uint8Array: window.Uint8Array,
+//     BigInt64Array: window.BigInt64Array,
+//   };
 
-  Object.keys(originalTypedArrayConstructors).forEach((typeName) => {
-    const OriginalConstructor = originalTypedArrayConstructors[typeName] as 
-      new (...args: any[]) => ArrayBufferView;
+//   Object.keys(originalTypedArrayConstructors).forEach((typeName) => {
+//     const OriginalConstructor = originalTypedArrayConstructors[typeName] as 
+//       new (...args: any[]) => ArrayBufferView;
 
-    // 修正 Proxy 的 target 使用
-    const ProxyConstructor = new Proxy(OriginalConstructor, {
-      construct(target, args, newTarget) {
-        // 使用 target 代替 OriginalConstructor（更符合 Proxy 语义）
-        if (args[0] instanceof ArrayBuffer && args.length === 1) {
-          const mappedRangeID = res.getResID(args[0]); // 非空断言
-          if (mappedRangeID) {
-            res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
-          }
-        }
+//     // 修正 Proxy 的 target 使用
+//     const ProxyConstructor = new Proxy(OriginalConstructor, {
+//       construct(target, args, newTarget) {
+//         // 使用 target 代替 OriginalConstructor（更符合 Proxy 语义）
+//         if (args[0] instanceof ArrayBuffer && args.length === 1) {
+//           const mappedRangeID = res.getResID(args[0]); // 非空断言
+//           if (mappedRangeID) {
+//             res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
+//           }
+//         }
 
-        return new (target as any)(...args); // 显式类型断言
-      }
-    });
+//         return new (target as any)(...args); // 显式类型断言
+//       }
+//     });
 
-    // 静态属性处理优化
-    const originalConstructor = OriginalConstructor as any;
-    Object.getOwnPropertyNames(OriginalConstructor).forEach(staticProp => {
-      if (staticProp === 'prototype') return;
+//     // 静态属性处理优化
+//     const originalConstructor = OriginalConstructor as any;
+//     Object.getOwnPropertyNames(OriginalConstructor).forEach(staticProp => {
+//       if (staticProp === 'prototype') return;
 
-      const descriptor = Object.getOwnPropertyDescriptor(originalConstructor, staticProp);
-      if (descriptor) {
-        Object.defineProperty(ProxyConstructor, staticProp, descriptor);
-      }
-    });
+//       const descriptor = Object.getOwnPropertyDescriptor(originalConstructor, staticProp);
+//       if (descriptor) {
+//         Object.defineProperty(ProxyConstructor, staticProp, descriptor);
+//       }
+//     });
 
-    // 全局覆盖时的类型兼容处理
-    (window as any)[typeName] = ProxyConstructor;
-  });
-}
+//     // 全局覆盖时的类型兼容处理
+//     (window as any)[typeName] = ProxyConstructor;
+//   });
+// }
+
+// function hookType() {
+//   // 完整的 TypedArray 构造函数列表
+//   const typedArrayConstructors: string[] = [
+//     'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+//     'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
+//     'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array'
+//   ];
+
+//   typedArrayConstructors.forEach(typeName => {
+//     const originalConstructor = (window as any)[typeName];
+
+//     // 创建代理构造函数
+//     const ProxyConstructor = new Proxy(originalConstructor, {
+//       construct(target, args, newTarget) {
+//         let buffer: ArrayBuffer | undefined;
+//         try {
+//           // 1. 从参数中提取 ArrayBuffer
+//           // if (args.length >= 1) {
+//           //   const firstArg = args[0];
+//           //   if (firstArg instanceof ArrayBuffer) {
+//           //     buffer = firstArg;
+//           //   } else if (ArrayBuffer.isView(firstArg)) {
+//           //     buffer = firstArg.buffer;
+//           //   }
+//           // } else if (args.length === 3) { // buffer, byteOffset, length
+//           //   const bufferArg = args[0];
+//           //   if (bufferArg instanceof ArrayBuffer) {
+//           //     buffer = bufferArg;
+//           //   } else {
+//           //     // 抛出错误或记录日志，参数类型不符合预期
+//           //     msg.error(`[hookType] Invalid buffer type for ${typeName}`);
+//           //   }
+//           // }
+
+//           if (args[0] instanceof ArrayBuffer && args.length === 1) {
+//             const mappedRangeID = res.getResID(args[0]); // 非空断言
+//             if (mappedRangeID) {
+//               res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
+//             }
+//           }
+
+//           // 2. 记录缓冲区信息
+//           if (buffer) {
+//             const mappedRangeID = res.getResID(buffer);
+//             if (mappedRangeID) {
+//               res.track(buffer, { type: typeName }, 'bufferDataMap');
+//             } else {
+//               msg.error(`[hookType] Failed to track ${typeName}:`, buffer);
+//             }
+//           }
+//         } catch (error) {
+//           msg.error(`[hookType] Error tracking ${typeName}:`, error);
+//         }
+
+//         // 3. 调用原始构造函数
+//         return new (target as any)(...args);
+//       }
+//     });
+
+//     // 4. 复制静态属性
+//     const copyStaticProperties = (source: any, target: any) => {
+//       Object.getOwnPropertyNames(source).forEach(prop => {
+//         if (prop === 'prototype') return;
+//         const descriptor = Object.getOwnPropertyDescriptor(source, prop);
+//         if (descriptor) Object.defineProperty(target, prop, descriptor);
+//       });
+//     };
+//     copyStaticProperties(originalConstructor, ProxyConstructor);
+
+//     // 5. 替换全局构造函数
+//     (window as any)[typeName] = ProxyConstructor;
+//     msg.log(`Hooked ${typeName} constructor`);
+//   });
+// }
 
 /**
  * @brief 钩子函数，用于捕获 GPUCanvasContext 相关方法
@@ -194,9 +269,9 @@ function hookGPUAdapter() {
           adapter.requestDevice = async function(descriptor?: GPUDeviceDescriptor) {
             try {
               const device = await originalRequestDevice.call(adapter, descriptor);
+              recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);  
               // [hook device]
               GPUDeviceHook.hookDevice(device);
-              recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);  
               return device;
             } catch (error) {
               console.error('Error in requestDevice:', error);
@@ -228,7 +303,7 @@ export function hookInit() {
   }
 
   
-  hookType();
+  // hookType();
 
   hookGPUCanvasContext();
   hookGPUAdapter();

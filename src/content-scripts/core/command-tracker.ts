@@ -70,9 +70,7 @@ export class RenderPassTracker{
       RenderPassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
     if(type === 'end') this.setEnd();
-    RenderPassTracker.msg.log('[cmd]recordCmd : ', type, args);
     RenderPassTracker.res.replaceResourcesInArray(args);
-    RenderPassTracker.msg.log('[cmd]recordCmd : ', args);
     this.CmdQueue.push({eid, type, args});
   }
 
@@ -371,7 +369,6 @@ export class CommandTracker{
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
     encoder.createPass(this.Eid++, passID, type, desc);
-    CommandTracker.msg.log('[cmd]recoderPassCreate : pass created', encoderID, passID, type, desc)
   }
 
   recordPassCmd(encoderID: number, passID: number, type: string, args: any[]) {

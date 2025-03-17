@@ -104,26 +104,28 @@ export class GPUDeviceHook {
         
         if (descriptor.mappedAtCreation) {
           const originalGetMappedRange = buffer.getMappedRange;
-          let mappedRange:any = null;
+          let mappedRange: ArrayBufferView | null = null;
           
-          buffer.getMappedRange = function(...args: any[]) {
-            mappedRange = originalGetMappedRange.apply(this, args);
-            GPUDeviceHook.res.track(mappedRange, { buffer: buffer }, 'bufferDataMap', );
+          buffer.getMappedRange = function(...args: any[]): ArrayBufferView {
+            const result = originalGetMappedRange.apply(this, args);
+            mappedRange = result;
             GPUDeviceHook.APIrecorder.recordMethodCall('getMappedRange', args);
-            return mappedRange;
+            return result;
           };
     
           // 劫持 unmap 捕获初始数据
           const originalUnmap = buffer.unmap;
           buffer.unmap = function() {
             if (mappedRange) {
+              let uint8Data = new Uint8Array(mappedRange as any);
               GPUDeviceHook.res.track(mappedRange, {
-                arrayBuffer: mappedRange,
-                data: mappedRange
+                buffer: buffer,
+                data: [...uint8Data]
               }, 'bufferData');
               GPUDeviceHook.APIrecorder.recordMethodCall('unmap', []);
             }
-            return originalUnmap.call(this);
+            const result = originalUnmap.call(this);
+            return result;
           };
         } 
         
@@ -233,7 +235,7 @@ export class GPUDeviceHook {
       'copyExternalImageToTexture',
       'onSubmittedWorkDone',
       'submit',
-      'writeBuffer',
+      // 'writeBuffer',
       'writeTexture',
       // 添加其他需要拦截的方法...
       ...methodsList
@@ -242,6 +244,9 @@ export class GPUDeviceHook {
     methodsToHook.forEach(methodName => {
       this.hookQueueMethod(proto, methodName);
     });
+
+    // 特殊处理
+    this.hookQueueWriteBuffer(proto);
 
     return queue
   }
@@ -277,6 +282,58 @@ export class GPUDeviceHook {
 
     // 保存原始方法引用
     this.hookedMethods.get(proto)?.set(methodName, originalMethod);
+  }
+
+  private static hookQueueWriteBuffer(proto: any) {
+    const originalMethod = proto['writeBuffer'];
+    proto['writeBuffer'] = function wrappedMethod(...args: any[]) {
+      try {
+        const result = originalMethod.apply(this, args);
+        if(GPUDeviceHook.recoder.captureState.active){
+          const [buffer, bufferOffset, data, dataOffset, size] = args;
+          // 1. 创建数据副本（避免直接引用可能被修改的原始数据）
+          let dataCopy: ArrayBuffer;
+          if (data instanceof ArrayBuffer) {
+            dataCopy = data.slice(0); // 直接复制ArrayBuffer
+          } else if (ArrayBuffer.isView(data)) { // 处理ArrayBufferView（如Uint8Array）
+            // 复制底层的ArrayBuffer
+            dataCopy = data.buffer.slice(
+              data.byteOffset,
+              data.byteOffset + data.byteLength
+            );
+          } else if (data instanceof SharedArrayBuffer) {
+            dataCopy = data.slice(0); // 处理SharedArrayBuffer
+          } else {
+            throw new Error("Unsupported data type for writeBuffer");
+          }
+          // 将ArrayBuffer转换为Uint8Array以便存储
+          
+          // 2. 生成唯一标识并存储到资源跟踪器
+          const dataId = GPUDeviceHook.res.track(data, {
+            data: [...new Uint8Array(dataCopy)]
+          }, 'writeBufferData');
+          
+          // 3. 构建元数据（包含数据 ID 和参数）
+          const callMeta = [
+            buffer,
+            bufferOffset,
+            dataId, // 关键：通过 ID 关联数据
+            dataOffset || 0,
+            size || dataCopy.byteLength,
+          ];
+          GPUDeviceHook.cmd.recordCmd('writeBuffer', callMeta);
+          GPUDeviceHook.APIrecorder.recordMethodCall('writeBuffer', args);
+        }
+        return result;
+      } catch (error) {
+        GPUDeviceHook.msg.error(`[GPUDevice] writeBuffer error: `, error);
+        throw error;
+      }
+    }
+    if (!this.hookedMethods.has(proto)) {
+      this.hookedMethods.set(proto, new Map());
+    }
+    this.hookedMethods.get(proto)?.set('writeBuffer', originalMethod);
   }
 
   static unhookGPUDevice<T extends GPUDevice>(device: T): T {
