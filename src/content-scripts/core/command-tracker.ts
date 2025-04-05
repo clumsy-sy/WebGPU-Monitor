@@ -2,7 +2,7 @@ import { Utils, cmdInfo } from "../../global/utils";
 import { Msg } from "../../global/message";
 import { ResourceTracker } from "./resource-tracker"
 
-enum PassCmdType{
+enum PassCmdType {
   RenderPass = "RenderPass",
   ComputePass = "ComputePass",
 };
@@ -11,7 +11,7 @@ interface EncoderCmd {
   id: number,
   type: 'GPUCommandEncoder',
   descriptor: GPUCommandEncoderDescriptor | undefined;
-  cmds: (RenderPassRecord|ComputePassRecord|EncoderBaseCmd)[],
+  cmds: (RenderPassRecord | ComputePassRecord | EncoderBaseCmd)[],
   timeStamp: number
 }
 
@@ -39,7 +39,7 @@ interface ComputePassRecord {
   descriptor: GPUComputePassDescriptor | undefined;
 }
 
-export class RenderPassTracker{
+export class RenderPassTracker {
   // 资源库实例
   static res: ResourceTracker = ResourceTracker.getInstance();
   // 消息实例
@@ -49,12 +49,12 @@ export class RenderPassTracker{
   // renderpass 类型
   descriptor: GPURenderPassDescriptor | undefined;
   // 命令队列
-  CmdQueue: {eid: number, type: string, args: any[]}[] = [];
+  CmdQueue: { eid: number, type: string, args: any[] }[] = [];
   // 是否结束
   IsEnd: boolean = false;
   startEid: number = 0;
 
-  constructor(eid:number, desc?: GPURenderPassDescriptor){
+  constructor(eid: number, desc?: GPURenderPassDescriptor) {
     this.startEid = eid;
     RenderPassTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
@@ -65,16 +65,16 @@ export class RenderPassTracker{
    * @param type 类型
    * @param args 参数
    */
-  recordCmd(eid: number, type: string, args: any[]){
-    if(this.IsEnd === true) {
+  recordCmd(eid: number, type: string, args: any[]) {
+    if (this.IsEnd === true) {
       RenderPassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
-    if(type === 'end') this.setEnd();
+    if (type === 'end') this.setEnd();
     RenderPassTracker.res.replaceResourcesInArray(args);
-    this.CmdQueue.push({eid, type, args});
+    this.CmdQueue.push({ eid, type, args });
   }
 
-  outputRecord(): RenderPassRecord{
+  outputRecord(): RenderPassRecord {
     const pass: RenderPassRecord = {
       id: this.PassID,
       eid: this.startEid,
@@ -85,32 +85,32 @@ export class RenderPassTracker{
     return pass;
   }
 
-  setPassID(id: number){
+  setPassID(id: number) {
     this.PassID = id;
   }
-  getPassID(){
+  getPassID() {
     return this.PassID;
   }
 
-  setEnd(){
+  setEnd() {
     this.IsEnd = true;
   }
-  checkEnd(){
+  checkEnd() {
     return this.IsEnd;
   }
 
-  getAllCmds(){
+  getAllCmds() {
     return this.CmdQueue;
   }
 
-  destory(){
+  destory() {
     this.IsEnd = false;
     this.CmdQueue = [];
   }
 
 }
 
-export class ComputePassTracker{
+export class ComputePassTracker {
   // 资源库实例
   static res: ResourceTracker = ResourceTracker.getInstance();
   // 消息实例
@@ -118,14 +118,14 @@ export class ComputePassTracker{
   // Computepass id
   PassID: number = 0;
   // Computepass 类型
-  descriptor: GPUComputePassDescriptor| undefined;
+  descriptor: GPUComputePassDescriptor | undefined;
   // 命令队列
-  CmdQueue: {eid: number, type: string, args: any[]}[] = [];
+  CmdQueue: { eid: number, type: string, args: any[] }[] = [];
   // 是否结束
   IsEnd: boolean = false;
   startEid: number = 0;
 
-  constructor(eid: number, desc?: GPUComputePassDescriptor){
+  constructor(eid: number, desc?: GPUComputePassDescriptor) {
     this.startEid = eid;
     ComputePassTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
@@ -136,16 +136,16 @@ export class ComputePassTracker{
    * @param type 类型
    * @param args 参数
    */
-  recordCmd(eid: number, type: string, args: any[]){
-    if(this.IsEnd === true) {
+  recordCmd(eid: number, type: string, args: any[]) {
+    if (this.IsEnd === true) {
       ComputePassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
-    if(type === 'end') this.setEnd();
+    if (type === 'end') this.setEnd();
     ComputePassTracker.res.replaceResourcesInArray(args);
-    this.CmdQueue.push({eid, type, args});
+    this.CmdQueue.push({ eid, type, args });
   }
 
-  outputRecord(): ComputePassRecord{
+  outputRecord(): ComputePassRecord {
     const pass: ComputePassRecord = {
       id: this.PassID,
       eid: this.startEid,
@@ -156,25 +156,25 @@ export class ComputePassTracker{
     return pass;
   }
 
-  setPassID(id: number){
+  setPassID(id: number) {
     this.PassID = id;
   }
-  getPassID(){
+  getPassID() {
     return this.PassID;
   }
 
-  setEnd(){
+  setEnd() {
     this.IsEnd = true;
   }
-  checkEnd(){
+  checkEnd() {
     return this.IsEnd;
   }
 
-  getAllCmds(){
+  getAllCmds() {
     return this.CmdQueue;
   }
 
-  destory(){
+  destory() {
     this.IsEnd = false;
     this.CmdQueue = [];
   }
@@ -182,38 +182,38 @@ export class ComputePassTracker{
 }
 
 
-export class EncoderTracker{
+export class EncoderTracker {
   private static msg = Msg.getInstance();
   private static res = ResourceTracker.getInstance();
 
   EncoderID: number = 0;
   PassCnt: number = 0;
-  cmdQueue: (RenderPassTracker|ComputePassTracker|{eid:number, type: string, args: any[]})[] = [];
+  cmdQueue: (RenderPassTracker | ComputePassTracker | { eid: number, type: string, args: any[] })[] = [];
   IsSubmit: boolean = false;
   timeStamp: number = 0;
   descriptor: GPUCommandEncoderDescriptor | undefined;
 
-  passMap: Map<number, (RenderPassTracker|ComputePassTracker)> = new Map();
+  passMap: Map<number, (RenderPassTracker | ComputePassTracker)> = new Map();
 
-  constructor(id: number, desc?: GPUCommandEncoderDescriptor){
+  constructor(id: number, desc?: GPUCommandEncoderDescriptor) {
     this.EncoderID = id;
     this.timeStamp = performance.now();
     EncoderTracker.res.replaceResourcesInDesc(desc);
     this.descriptor = desc;
   }
 
-  createPass(eid: number, id: number, type: string, desc: GPUComputePassDescriptor | GPUComputePassDescriptor | undefined){
-    if(type === 'beginRenderPass') {
+  createPass(eid: number, id: number, type: string, desc: GPUComputePassDescriptor | GPUComputePassDescriptor | undefined) {
+    if (type === 'beginRenderPass') {
       const pass = new RenderPassTracker(eid, desc as GPURenderPassDescriptor);
       this.cmdQueue.push(pass);
       this.passMap.set(id, pass);
-      this.PassCnt ++;
+      this.PassCnt++;
       return pass;
-    } else if ( type === 'beginComputePass'  ){
+    } else if (type === 'beginComputePass') {
       const pass = new ComputePassTracker(eid, desc as GPUComputePassDescriptor);
       this.cmdQueue.push(pass);
       this.passMap.set(id, pass);
-      this.PassCnt ++;
+      this.PassCnt++;
       return pass;
     } else {
       EncoderTracker.msg.error('[cmd]recordPasscmd : pass type error', type);
@@ -221,19 +221,20 @@ export class EncoderTracker{
   }
 
   recordPassCmd(passID: number, eid: number, type: string, args: any[]) {
-    if(!this.passMap.has(passID)) {
+    if (!this.passMap.has(passID)) {
       EncoderTracker.msg.error('[cmd]recordPasscmd : pass not found', passID);
     }
+    console.log(`passid = ${passID} ${type}`);
     this.passMap.get(passID)?.recordCmd(eid, type, args);
   }
 
-  recordCmd(eid:number, type: string, args: any[]){
+  recordCmd(eid: number, type: string, args: any[]) {
     EncoderTracker.res.replaceResourcesInArray(args);
-    this.cmdQueue.push({eid, type, args});
+    this.cmdQueue.push({ eid, type, args });
   }
 
-  outputRecord(): EncoderCmd{
-    const records: (EncoderBaseCmd| RenderPassRecord | ComputePassRecord)[] = [];
+  outputRecord(): EncoderCmd {
+    const records: (EncoderBaseCmd | RenderPassRecord | ComputePassRecord)[] = [];
 
     for (const item of this.cmdQueue) {
       if (item instanceof RenderPassTracker) {
@@ -262,32 +263,32 @@ export class EncoderTracker{
     return encoder;
   }
 
-  getPass(id: number){
+  getPass(id: number) {
     return this.passMap.get(id);
   }
 
-  setEncoderID(id: number){
+  setEncoderID(id: number) {
     this.EncoderID = id;
   }
 
-  getEncoderID(){
+  getEncoderID() {
     return this.EncoderID;
   }
 
-  getAllPasses(){
+  getAllPasses() {
     return this.passMap.values();
   }
 
-  setSubmit(){
+  setSubmit() {
     this.IsSubmit = true;
   }
 
-  checkSubmit(){
+  checkSubmit() {
     return this.IsSubmit;
   }
 
 
-  destory(){
+  destory() {
     for (const item of this.cmdQueue) {
       if (item instanceof RenderPassTracker || item instanceof ComputePassTracker) {
         item.destory();
@@ -319,12 +320,12 @@ export class EncoderTracker{
 
 // }
 
-export class CommandTracker{
+export class CommandTracker {
   /**
    * @brief CommandTracker 单例
    */
   private static instance: CommandTracker;
-  private constructor() {}
+  private constructor() { }
   public static getInstance() {
     if (!CommandTracker.instance) {
       CommandTracker.instance = new CommandTracker();
@@ -337,11 +338,11 @@ export class CommandTracker{
 
   // command event id
   Eid: number = 0;
-  CmdQueue: (EncoderTracker|cmdInfo)[] = [];
+  CmdQueue: (EncoderTracker | cmdInfo)[] = [];
   CmdMap: Map<number, EncoderTracker> = new Map();
 
   // todo sort cmd
-  recordCmd(type: string, args: any[]){
+  recordCmd(type: string, args: any[]) {
     let eid: number = this.Eid++;
     let time: number = performance.now();
     CommandTracker.res.replaceResourcesInArray(args);
@@ -349,14 +350,14 @@ export class CommandTracker{
     this.CmdQueue.push(cmd);
   }
 
-  recordEncoderCreate(encoderID: number, desc?: GPUCommandEncoderDescriptor){
+  recordEncoderCreate(encoderID: number, desc?: GPUCommandEncoderDescriptor) {
     const encoder: EncoderTracker = new EncoderTracker(encoderID, desc);
     this.CmdMap.set(encoderID, encoder);
     this.CmdQueue.push(encoder);
   }
 
-  recordEncodercmd(encoderID: number, type: string, args: any[]){
-    if(!this.CmdMap.has(encoderID)) {
+  recordEncodercmd(encoderID: number, type: string, args: any[]) {
+    if (!this.CmdMap.has(encoderID)) {
       CommandTracker.msg.error('[cmd]recordEncodercmd : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
@@ -364,7 +365,7 @@ export class CommandTracker{
   }
 
   recoderPassCreate(encoderID: number, passID: number, type: string, desc: any) {
-    if(!this.CmdMap.has(encoderID)) {
+    if (!this.CmdMap.has(encoderID)) {
       CommandTracker.msg.error('[cmd]recoderPassCreate : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
@@ -372,25 +373,26 @@ export class CommandTracker{
   }
 
   recordPassCmd(encoderID: number, passID: number, type: string, args: any[]) {
-    if(!this.CmdMap.has(encoderID)) {
+    if (!this.CmdMap.has(encoderID)) {
       CommandTracker.msg.error('[cmd]recordPasscmd : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
-    if(!encoder.passMap.has(passID)) {
-      CommandTracker.msg.error('[cmd]recordPasscmd : pass not found', 'passID = ' ,passID);
+    if (!encoder.passMap.has(passID)) {
+      CommandTracker.msg.error('[cmd]recordPasscmd : pass not found', 'passID = ', passID);
     }
+    console.log(`passid = ${passID} ${type}`);
     const pass = encoder.passMap.get(passID);
-    if( pass instanceof RenderPassTracker) {
+    if (pass instanceof RenderPassTracker) {
       pass.recordCmd(this.Eid++, type, args);
-    } else if( pass instanceof ComputePassTracker){
+    } else if (pass instanceof ComputePassTracker) {
       pass.recordCmd(this.Eid++, type, args);
     }
   }
 
-  getAllCmds(){
-    const recoders: (EncoderCmd|cmdInfo)[] = [];
+  getAllCmds() {
+    const recoders: (EncoderCmd | cmdInfo)[] = [];
     this.CmdQueue.forEach(cmd => {
-      if(cmd instanceof EncoderTracker){
+      if (cmd instanceof EncoderTracker) {
         recoders.push(cmd.outputRecord());
       } else {
         recoders.push(cmd);
@@ -399,9 +401,9 @@ export class CommandTracker{
     return recoders;
   }
 
-  destory(){
+  destory() {
     this.CmdQueue.forEach(cmd => {
-      if(cmd instanceof EncoderTracker){
+      if (cmd instanceof EncoderTracker) {
         cmd.destory();
       }
     });

@@ -12,7 +12,6 @@
     "outDir": "./dist", // 输出目录
     "rootDir": "./src" // 根目录
   },
-  // "include": ["src/devtools/**/*"], // 编译
   "include": ["src/**/*.ts", "src/*.d.ts"], // 编译
   "exclude": ["node_modules"] // 排除 node_modules
 }

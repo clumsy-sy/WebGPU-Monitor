@@ -24,7 +24,7 @@ function sendMessageToDevTools(data: any) {
  * @param message 消息
  */
 function messageHandler(message: any) {
-  if(!message.data) {
+  if (!message.data) {
     return;
   }
   // 解析消息
@@ -49,26 +49,26 @@ function messageHandler(message: any) {
     console.log("[cs-si]Capture finish.");
     captureSignal = false;
     sendMessageToDevTools(message.data);
-  } else if (receivedData.type === MsgType.Frame){
+  } else if (receivedData.type === MsgType.Frame) {
     sendMessageToDevTools(message.data);
   } else {
     return;
   }
 }
 
-(function() {
+(function () {
   // 监听从注入脚本发送的消息
   window.addEventListener("message", messageHandler);
   console.log("[cs-si] Add Inject listener ----------")
 
   // 链接 devtools
   chrome.runtime.onConnect.addListener((port) => {
-    if(port.name === "panel" ) {
+    if (port.name === "panel") {
       console.log("[cs-si]Connected to panel.");
       devToolPanelPort = port;
-      if(devToolPanelPort) {
+      if (devToolPanelPort) {
         // 将缓存的消息发送给 devtools
-        for(let i = 0; i < messageQueue.length; i++) {
+        for (let i = 0; i < messageQueue.length; i++) {
           devToolPanelPort.postMessage(messageQueue[i]);
         }
         messageQueue = [];
@@ -82,8 +82,8 @@ function messageHandler(message: any) {
       const receivedData = JSON.parse(message);
       if (receivedData.type === MsgType.Captures_begin) {
         captureSignal = true;
-        
-        window.postMessage({ type: MsgType.Captures_begin, message: "capture signal", data: {signal: captureSignal} }, "*");
+
+        window.postMessage({ type: MsgType.Captures_begin, message: "capture signal", data: { signal: captureSignal } }, "*");
 
       } else {
         console.log("[cs-si]Message from unknown source:", receivedData);

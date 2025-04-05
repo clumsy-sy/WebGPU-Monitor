@@ -1,17 +1,17 @@
 import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
-import { Msg } from "../../global/message";
+import { Msg, MsgLevel } from "../../global/message";
 import { APIRecorder } from "./api-recorder";
 
 
 export class FrameRecorder {
-  
+
   private msg = Msg.getInstance();
   /**
    * 帧记录器
    */
   private static instance: FrameRecorder;
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance() {
     if (!FrameRecorder.instance) {
@@ -35,9 +35,9 @@ export class FrameRecorder {
   cmd = CommandTracker.getInstance();
   api = APIRecorder.getInstance();
 
-  CanvasConf: GPUCanvasConfiguration|{} = {};
-  AdapterOptions: GPURequestAdapterOptions|{} = {};
-  deviceDesc: GPUDeviceDescriptor|{} = {};
+  CanvasConf: GPUCanvasConfiguration | {} = {};
+  AdapterOptions: GPURequestAdapterOptions | {} = {};
+  deviceDesc: GPUDeviceDescriptor | {} = {};
 
   setFrameStartTime(time: number) {
     this.frameStartTime = time;
@@ -62,7 +62,7 @@ export class FrameRecorder {
     this.frameEndTime = 0;
     this.frameWidth = 0;
     this.frameHeight = 0;
-    this.msg.log("FrameRecorder reset");
+    this.msg.log(MsgLevel.level_1, "FrameRecorder reset ------------------");
   }
 
   clear() {
@@ -73,7 +73,7 @@ export class FrameRecorder {
     this.frameHeight = 0;
     this.cmd.destory();
     this.cmd = CommandTracker.getInstance();
-    this.msg.log("FrameRecorder clear");
+    this.msg.log(MsgLevel.level_1, "FrameRecorder clear -----------------");
   }
 
   trackCanvasConf(conf: GPUCanvasConfiguration) {
@@ -81,11 +81,11 @@ export class FrameRecorder {
   }
 
   trackAdapterOptions(options: GPURequestAdapterOptions) {
-    this.AdapterOptions = {options};
+    this.AdapterOptions = { options };
   }
 
   trackDeviceDesc(desc: GPUDeviceDescriptor) {
-    this.deviceDesc = {desc};
+    this.deviceDesc = { desc };
   }
 
   outputFrame() {
@@ -106,14 +106,14 @@ export class FrameRecorder {
     return frame;
   }
 
-  jsonLog(){
-    this.msg.log("[Frame]-------------------------------");
-    this.msg.log(JSON.stringify(this.outputFrame(), (key, value) => {
+  jsonLog() {
+    this.msg.log(MsgLevel.level_2, "[Frame]-------------------------------");
+    this.msg.log(MsgLevel.level_2, JSON.stringify(this.outputFrame(), (key, value) => {
       if (key === 'data' && Array.isArray(value)) {
         return JSON.stringify(value); // 将数组压缩为一行
       }
       return value;
     }, 2));
-    this.msg.log("[Frame]-------------------------------");
+    this.msg.log(MsgLevel.level_2, "[Frame]-------------------------------");
   }
 }

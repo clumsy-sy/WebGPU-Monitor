@@ -1,4 +1,4 @@
-import { Msg } from "../../../global/message";
+import { Msg, MsgLevel } from "../../../global/message";
 import { APIRecorder } from "../api-recorder";
 import { CommandTracker } from "../command-tracker";
 import { ResourceTracker } from "../resource-tracker";
@@ -11,7 +11,7 @@ export class GPUComputePassEncoderHook {
   private static cmd = CommandTracker.getInstance();
   private static msg = Msg.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
-  
+
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private curPassID = 0;
   private curEncoderID = 0;
@@ -22,9 +22,9 @@ export class GPUComputePassEncoderHook {
   }
   // 钩子入口方法
   hookGPUComputePassEncoder<T extends GPUComputePassEncoder>
-    (cmdencoder: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
-    
+    (pass: T, methodsList: string[] = []): T {
+    const proto = Object.getPrototypeOf(pass);
+
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
       'dispatchWorkgroups',
@@ -44,15 +44,15 @@ export class GPUComputePassEncoderHook {
       this.hookMethod(proto, methodName);
     });
 
-    return cmdencoder;
+    return pass;
   }
 
   // 方法劫持核心逻辑
-  private hookMethod( proto: any, methodName: string) {
+  private hookMethod(proto: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
     const originalMethod = proto[methodName];
-    
+
     // 验证方法存在
     if (!originalMethod) {
       throw new Error(`Method ${methodName} not found on GPUComputePassEncoder`);
@@ -60,7 +60,7 @@ export class GPUComputePassEncoderHook {
 
     // 创建包装器并替换方法
     proto[methodName] = function wrappedMethod(...args: any[]) {
-      GPUComputePassEncoderHook.msg.log(`[GPUComputePassEncoder] ${methodName} hooked`);
+      GPUComputePassEncoderHook.msg.log(MsgLevel.level_3, `[GPUComputePassEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
@@ -93,7 +93,7 @@ export class GPUComputePassEncoderHook {
     if (protoMethods) {
       protoMethods.forEach((original, methodName) => {
         proto[methodName] = original;
-        GPUComputePassEncoderHook.msg.log(`[GPUComputePassEncoder] ${methodName} unhooked`);
+        GPUComputePassEncoderHook.msg.log(MsgLevel.level_3, `[GPUComputePassEncoder] ${methodName} unhooked`);
       });
       GPUComputePassEncoderHook.hookedMethods.delete(proto);
     }
@@ -113,7 +113,7 @@ export class GPURenderPassEncoderHook {
   private static cmd = CommandTracker.getInstance();
   private static msg = Msg.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
-  
+
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private curPassID = 0;
   private curEncoderID = 0;
@@ -124,9 +124,9 @@ export class GPURenderPassEncoderHook {
   }
   // 钩子入口方法
   hookGPURenderPassEncoder<T extends GPURenderPassEncoder>
-    (cmdencoder: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
-    
+    (pass: T, methodsList: string[] = []): T {
+    const proto = Object.getPrototypeOf(pass);
+
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
       'beginOcclusionQuery',
@@ -157,15 +157,15 @@ export class GPURenderPassEncoderHook {
       this.hookMethod(proto, methodName);
     });
 
-    return cmdencoder;
+    return pass;
   }
 
   // 方法劫持核心逻辑
-  private hookMethod( proto: any, methodName: string) {
+  private hookMethod(proto: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
     const originalMethod = proto[methodName];
-    
+
     // 验证方法存在
     if (!originalMethod) {
       throw new Error(`Method ${methodName} not found on GPURenderPassEncoder`);
@@ -178,6 +178,7 @@ export class GPURenderPassEncoderHook {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
         // 记录 Cmd
+        console.log(`[GPURenderPassEncoder] ${methodName} ${self_this.curPassID} `);
         GPURenderPassEncoderHook.cmd.recordPassCmd(self_this.curEncoderID, self_this.curPassID, methodName, args);
         // 记录 API 调用
         GPURenderPassEncoderHook.APIrecorder.recordMethodCall(methodName, args);

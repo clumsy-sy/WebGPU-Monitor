@@ -1,5 +1,5 @@
 import { FrameRecorder } from "./frame-recorder";
-import { MsgType, Msg } from "../../global/message";
+import { MsgType, Msg, MsgLevel } from "../../global/message";
 import { GPUDeviceHook } from "./hooks/gpu-device";
 import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
@@ -15,198 +15,127 @@ const cmd = CommandTracker.getInstance();
 const api = APIRecorder.getInstance();
 
 /**
+ * @brief 主动 requestAnimationFrame 调用，来分割每一帧
+ */
+function frameRegistered() {
+  // 检测 URL 变化
+  if (lastUrl !== location.href) {
+    lastUrl = location.href;
+    frameCnt = 0;
+    recoder.reset();
+    msg.log(MsgLevel.level_1, "[main] URL changed, reset frame counter.");
+  }
+  // fixme callback 可能发生变化
+
+  // 计算 FPS
+  {
+    const currentFrameTime = performance.now();
+    if (frameCnt > 0) {
+      const deltaTime = currentFrameTime - lastFrameTime;
+      const fps = Math.round(1000 / deltaTime);
+      // 向 dev 页面发生信息
+      msg.sendMessage(MsgType.Window, "time: ", { frameCnt, deltaTime, fps });
+    }
+
+    frameCnt += 1;
+    lastFrameTime = currentFrameTime;
+  }
+
+  // 截帧结束
+  if (recoder.captureState.active) {
+    msg.sendMessage(MsgType.Captures_end, "Capture frame finish!", { signal: false });
+
+    recoder.captureState.msg = false;
+    recoder.captureState.active = false;
+    recoder.setFrameEndTime(performance.now());
+    // 输出数据
+    msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(recoder.outputFrame()));
+    recoder.jsonLog();
+    recoder.clear();
+  }
+
+  // 开始截帧
+  if (recoder.captureState.msg) {
+    console.log(`[main] Capture frame [id=${frameCnt}] `);
+    recoder.captureState.active = true;
+    recoder.setFrameStartTime(performance.now());
+  }
+  // 递归
+  requestAnimationFrame(frameRegistered);
+}
+
+
+/**
  * @brief 注入帧钩子函数
  * @description 分割每一帧，计算 FPS 并发送到后台
  */
-function installFrameHooks() {
-  // 获取原始的 requestAnimationFrame 函数
-  const originalRAF = window.requestAnimationFrame;
+// function installFrameHooks() {
+//   // 获取原始的 requestAnimationFrame 函数
+//   const originalRAF = window.requestAnimationFrame;
 
-  window.requestAnimationFrame = function (callback) {
-    return originalRAF(timestamp => {
+//   window.requestAnimationFrame = function (callback) {
+//     return originalRAF(timestamp => {
 
-      // 检测 URL 变化
-      if (lastUrl !== location.href) {
-        lastUrl = location.href;
-        frameCnt = 0;
-        recoder.reset();
-      }
-      // fixme callback 可能发生变化
+//       // 检测 URL 变化
+//       if (lastUrl !== location.href) {
+//         lastUrl = location.href;
+//         frameCnt = 0;
+//         recoder.reset();
+//       }
+//       // fixme callback 可能发生变化
 
-      let result: void;
-      try {
-        result = callback(timestamp);
-      } catch (error) {
-        console.error('Error in requestAnimationFrame callback:', error);
-        throw error;
-      }
+//       let result: void;
+//       try {
+//         result = callback(timestamp);
+//       } catch (error) {
+//         console.error('Error in requestAnimationFrame callback:', error);
+//         throw error;
+//       }
 
-      // 计算 FPS
-      {
-        const currentFrameTime = performance.now();
-        if (frameCnt > 0) {
-          const deltaTime = currentFrameTime - lastFrameTime;
-          const fps = Math.round(1000 / deltaTime);
-          // 向 dev 页面发生信息
-          msg.sendMessage(MsgType.Window, "time: ", {frameCnt, deltaTime, fps});
-        }
-  
-        frameCnt += 1;
-        lastFrameTime = currentFrameTime;
-      }
+//       // 计算 FPS
+//       {
+//         const currentFrameTime = performance.now();
+//         if (frameCnt > 0) {
+//           const deltaTime = currentFrameTime - lastFrameTime;
+//           const fps = Math.round(1000 / deltaTime);
+//           // 向 dev 页面发生信息
+//           msg.sendMessage(MsgType.Window, "time: ", {frameCnt, deltaTime, fps});
+//         }
 
-      // 截帧结束
-      if (recoder.captureState.active) {
-        msg.sendMessage( MsgType.Captures_end, "Capture frame finish!", {signal: false} );
-        
-        recoder.captureState.msg = false;
-        recoder.captureState.active = false;
-        recoder.setFrameEndTime(performance.now());
-        // 输出数据
-        msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(recoder.outputFrame()));
-        recoder.jsonLog();
-        recoder.clear();
-      }
+//         frameCnt += 1;
+//         lastFrameTime = currentFrameTime;
+//       }
 
-      // 开始截帧
-      if (recoder.captureState.msg) {
-        console.log(`[main] Capture frame [id=${frameCnt}] `);
-        recoder.captureState.active = true;
-        recoder.setFrameStartTime(performance.now());
-      }
-      
-      return result;
-    });
-  };
-}
+//       // 截帧结束
+//       if (recoder.captureState.active) {
+//         msg.sendMessage( MsgType.Captures_end, "Capture frame finish!", {signal: false} );
 
-/**
- * @description 捕获 TypedArray 的构造函数，并记录缓冲区类型
- */
-// function hookType() {
-//   // 明确类型注解
-//   const originalTypedArrayConstructors: Record<string, Function> = {
-//     Float32Array: window.Float32Array,
-//     Uint32Array: window.Uint32Array,
-//     Uint16Array: window.Uint16Array,
-//     Uint8Array: window.Uint8Array,
-//     BigInt64Array: window.BigInt64Array,
+//         recoder.captureState.msg = false;
+//         recoder.captureState.active = false;
+//         recoder.setFrameEndTime(performance.now());
+//         // 输出数据
+//         msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(recoder.outputFrame()));
+//         recoder.jsonLog();
+//         recoder.clear();
+//       }
+
+//       // 开始截帧
+//       if (recoder.captureState.msg) {
+//         console.log(`[main] Capture frame [id=${frameCnt}] `);
+//         recoder.captureState.active = true;
+//         recoder.setFrameStartTime(performance.now());
+//       }
+
+//       return result;
+//     });
 //   };
-
-//   Object.keys(originalTypedArrayConstructors).forEach((typeName) => {
-//     const OriginalConstructor = originalTypedArrayConstructors[typeName] as 
-//       new (...args: any[]) => ArrayBufferView;
-
-//     // 修正 Proxy 的 target 使用
-//     const ProxyConstructor = new Proxy(OriginalConstructor, {
-//       construct(target, args, newTarget) {
-//         // 使用 target 代替 OriginalConstructor（更符合 Proxy 语义）
-//         if (args[0] instanceof ArrayBuffer && args.length === 1) {
-//           const mappedRangeID = res.getResID(args[0]); // 非空断言
-//           if (mappedRangeID) {
-//             res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
-//           }
-//         }
-
-//         return new (target as any)(...args); // 显式类型断言
-//       }
-//     });
-
-//     // 静态属性处理优化
-//     const originalConstructor = OriginalConstructor as any;
-//     Object.getOwnPropertyNames(OriginalConstructor).forEach(staticProp => {
-//       if (staticProp === 'prototype') return;
-
-//       const descriptor = Object.getOwnPropertyDescriptor(originalConstructor, staticProp);
-//       if (descriptor) {
-//         Object.defineProperty(ProxyConstructor, staticProp, descriptor);
-//       }
-//     });
-
-//     // 全局覆盖时的类型兼容处理
-//     (window as any)[typeName] = ProxyConstructor;
-//   });
 // }
 
-// function hookType() {
-//   // 完整的 TypedArray 构造函数列表
-//   const typedArrayConstructors: string[] = [
-//     'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
-//     'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
-//     'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array'
-//   ];
-
-//   typedArrayConstructors.forEach(typeName => {
-//     const originalConstructor = (window as any)[typeName];
-
-//     // 创建代理构造函数
-//     const ProxyConstructor = new Proxy(originalConstructor, {
-//       construct(target, args, newTarget) {
-//         let buffer: ArrayBuffer | undefined;
-//         try {
-//           // 1. 从参数中提取 ArrayBuffer
-//           // if (args.length >= 1) {
-//           //   const firstArg = args[0];
-//           //   if (firstArg instanceof ArrayBuffer) {
-//           //     buffer = firstArg;
-//           //   } else if (ArrayBuffer.isView(firstArg)) {
-//           //     buffer = firstArg.buffer;
-//           //   }
-//           // } else if (args.length === 3) { // buffer, byteOffset, length
-//           //   const bufferArg = args[0];
-//           //   if (bufferArg instanceof ArrayBuffer) {
-//           //     buffer = bufferArg;
-//           //   } else {
-//           //     // 抛出错误或记录日志，参数类型不符合预期
-//           //     msg.error(`[hookType] Invalid buffer type for ${typeName}`);
-//           //   }
-//           // }
-
-//           if (args[0] instanceof ArrayBuffer && args.length === 1) {
-//             const mappedRangeID = res.getResID(args[0]); // 非空断言
-//             if (mappedRangeID) {
-//               res.track(args[0], { type: typeName }, 'bufferDataMap',); // 非空断言
-//             }
-//           }
-
-//           // 2. 记录缓冲区信息
-//           if (buffer) {
-//             const mappedRangeID = res.getResID(buffer);
-//             if (mappedRangeID) {
-//               res.track(buffer, { type: typeName }, 'bufferDataMap');
-//             } else {
-//               msg.error(`[hookType] Failed to track ${typeName}:`, buffer);
-//             }
-//           }
-//         } catch (error) {
-//           msg.error(`[hookType] Error tracking ${typeName}:`, error);
-//         }
-
-//         // 3. 调用原始构造函数
-//         return new (target as any)(...args);
-//       }
-//     });
-
-//     // 4. 复制静态属性
-//     const copyStaticProperties = (source: any, target: any) => {
-//       Object.getOwnPropertyNames(source).forEach(prop => {
-//         if (prop === 'prototype') return;
-//         const descriptor = Object.getOwnPropertyDescriptor(source, prop);
-//         if (descriptor) Object.defineProperty(target, prop, descriptor);
-//       });
-//     };
-//     copyStaticProperties(originalConstructor, ProxyConstructor);
-
-//     // 5. 替换全局构造函数
-//     (window as any)[typeName] = ProxyConstructor;
-//     msg.log(`Hooked ${typeName} constructor`);
-//   });
-// }
 
 /**
  * @brief 钩子函数，用于捕获 GPUCanvasContext 相关方法
  */
-function hookGPUCanvasContext(){
+function hookGPUCanvasContext() {
   // 获取 GPUCanvasConfiguration
   const originalCanvasConf = GPUCanvasContext.prototype.configure;
   GPUCanvasContext.prototype.configure = function (configuration) {
@@ -221,13 +150,13 @@ function hookGPUCanvasContext(){
     const texture = originalGetCurrentTexture.call(this);
     res.track(texture, {}, 'getCurrentTexture');
     api.recordMethodCall('getCurrentTexture', []);
-    if(texture) {
+    if (texture) {
       // 劫持 texture.createView
       const originalCreateView = texture.createView;
-      texture.createView = function wrappedMethod(descriptor:any) {
+      texture.createView = function wrappedMethod(descriptor: any) {
         try {
           const view = originalCreateView.apply(this, [descriptor]);
-          res.track(view, {parent:texture, descriptor}, 'createTextureView');
+          res.track(view, { parent: texture, descriptor }, 'createTextureView');
           api.recordMethodCall('createTextureView', [descriptor]);
           return view;
         } catch (error) {
@@ -252,40 +181,41 @@ function hookGPUCanvasContext(){
   };
 
   // fixme: getConfiguration(), unconfigure()
-
 }
-
+/**
+ * @brief 钩子函数，用于捕获 GPUAdapter 相关方法，递归调用内部 device 等等
+ */
 function hookGPUAdapter() {
-   // hook requestAdapter()
-    const originalRequestAdapter = navigator.gpu.requestAdapter;
-    navigator.gpu.requestAdapter = async function(options) {
-      try {
-        const adapter = await originalRequestAdapter.call(navigator.gpu, options);
-        recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
-        
-        if (adapter) {
-          // hook requestDevice()
-          const originalRequestDevice = adapter.requestDevice;
-          adapter.requestDevice = async function(descriptor?: GPUDeviceDescriptor) {
-            try {
-              const device = await originalRequestDevice.call(adapter, descriptor);
-              recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);  
-              // [hook device]
-              GPUDeviceHook.hookDevice(device);
-              return device;
-            } catch (error) {
-              console.error('Error in requestDevice:', error);
-              throw error;
-            }
-          };
-        }
-        return adapter;
+  // hook requestAdapter()
+  const originalRequestAdapter = navigator.gpu.requestAdapter;
+  navigator.gpu.requestAdapter = async function (options) {
+    try {
+      const adapter = await originalRequestAdapter.call(navigator.gpu, options);
+      recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
 
-      } catch (error) {
-        console.error('Error in requestAdapter:', error);
-        throw error;
+      if (adapter) {
+        // hook requestDevice()
+        const originalRequestDevice = adapter.requestDevice;
+        adapter.requestDevice = async function (descriptor?: GPUDeviceDescriptor) {
+          try {
+            const device = await originalRequestDevice.call(adapter, descriptor);
+            recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);
+            // [hook device]
+            GPUDeviceHook.hookDevice(device);
+            return device;
+          } catch (error) {
+            console.error('Error in requestDevice:', error);
+            throw error;
+          }
+        };
       }
-    };
+      return adapter;
+
+    } catch (error) {
+      console.error('Error in requestAdapter:', error);
+      throw error;
+    }
+  };
 }
 
 
@@ -298,23 +228,16 @@ export function hookInit() {
   if (!navigator.gpu) {
     throw new Error('WebGPU is not supported in your browser.');
   } else {
-    msg.setLog(true, true, true);
-    msg.log('[hook] WebGPU is supported and injecting started.');
+    msg.log(MsgLevel.level_1, '[hook] WebGPU is supported and injecting started.');
   }
 
-  
-  // hookType();
 
+  // 对 WebGPU 的关键 API 函数进行拦截
   hookGPUCanvasContext();
   hookGPUAdapter();
-  // hookGPUDevice();
 
-  // hookDeviceFunc();
-  // hookTextureFunc();
-  // hookCommandEncoderFunc();
-  // hookQueueCommands();
+  // 主动的分割浏览器的帧
+  requestAnimationFrame(frameRegistered);
 
-  installFrameHooks();
-
-  msg.log('[hook] injected.');
+  msg.log(MsgLevel.level_1, '[hook] injected.');
 }

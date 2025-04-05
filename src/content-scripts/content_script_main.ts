@@ -1,5 +1,5 @@
 import { hookInit } from './core/hook';
-import { MsgType} from '../global/message';
+import { MsgType } from '../global/message';
 import { FrameRecorder } from './core/frame-recorder';
 
 (function () {

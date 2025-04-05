@@ -11,7 +11,7 @@ export class ResourceTracker {
    * @brief 单例模式，用于创建资源跟踪器。
    */
   private static instance: ResourceTracker;
-  private constructor() {}
+  private constructor() { }
   public static getInstance() {
     if (!ResourceTracker.instance) {
       ResourceTracker.instance = new ResourceTracker();
@@ -34,17 +34,17 @@ export class ResourceTracker {
     switch (type) {
       case 'pipeline':
         id = Utils.genUniqueNumber();
-        if(desc.layout != 'auto') {
+        if (desc.layout != 'auto') {
           this.replaceResourcesInDesc(desc);
         }
         desc.vertex.module = this.getResInfo(desc.vertex.module)?.id;
         desc.fragment.module = this.getResInfo(desc.fragment.module)?.id;
         break;
       case 'bufferData':
-        if(this.resourceMap.has(desc.buffer)) {
+        if (this.resourceMap.has(desc.buffer)) {
           id = this.getResID(desc.buffer) as number;
           const bufferResInfo = this.getResInfo(desc.buffer);
-          if(bufferResInfo) {
+          if (bufferResInfo) {
             bufferResInfo.data = desc.data;
           }
           // 修改后直接返回
@@ -59,9 +59,9 @@ export class ResourceTracker {
         break;
     }
     // 跟踪资源
-    if(id !== 0) {
+    if (id !== 0) {
       this.resourceIDMap.set(id, resource);
-      this.resourceMap.set(resource, { id, type, desc});
+      this.resourceMap.set(resource, { id, type, desc });
     } else {
       this.msg.error(`[res]track : resource no id`);
     }
@@ -74,7 +74,7 @@ export class ResourceTracker {
    * @todo 优化，WeakSet 记录被替换的资源，避免重复替换
    */
   replaceResourcesInDesc(obj: any): void {
-    const traverse = (currentItem: any , parent: any, key: number | string | null) => {
+    const traverse = (currentItem: any, parent: any, key: number | string | null) => {
       // 首先检查当前项是否是资源实例
       if (this.resourceMap.has(currentItem)) {
         if (parent && key !== null) {
@@ -98,7 +98,7 @@ export class ResourceTracker {
 
   // 在 ResourceTracker 类中添加以下方法
   replaceResourcesInArray(arr: any[]): void {
-    const traverse = (currentItem: any , parent: any, key: number | string | null) => {
+    const traverse = (currentItem: any, parent: any, key: number | string | null) => {
       // 首先检查当前项是否是资源实例
       if (this.resourceMap.has(currentItem)) {
         if (parent && key !== null) {
@@ -127,9 +127,9 @@ export class ResourceTracker {
    * @param resource  
    * @returns ResourceInfo
    */
-  getResInfo(resource : any) {
+  getResInfo(resource: any) {
     // if(this.resourceMap.has(resource)){
-      return this.resourceMap.get(resource);
+    return this.resourceMap.get(resource);
     // } else {
     //   this.msg.error('[res]getResInfo : resource not found', resource);
     // }
@@ -140,21 +140,21 @@ export class ResourceTracker {
    * @param resource 
    * @returns resourceID or undefined
    */
-  getResID(resource : any) {
-    if(this.resourceMap.has(resource)){
+  getResID(resource: any) {
+    if (this.resourceMap.has(resource)) {
       return this.resourceMap.get(resource)?.id;
     } else {
       this.msg.error('[res]getResID : resource not found', resource);
     }
   }
-  
+
   /**
    * @brief 根据 ID 获取资源
    * @param id 
    * @returns resource or undefined
    */
-  getResFromID(id : number) {
-    if(this.resourceIDMap.has(id)){
+  getResFromID(id: number) {
+    if (this.resourceIDMap.has(id)) {
       return this.resourceIDMap.get(id);
     } else {
       this.msg.error('[res]getResFromID : resource not found', id);

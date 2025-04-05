@@ -1,4 +1,4 @@
-import { Msg } from "../../../global/message";
+import { Msg, MsgLevel } from "../../../global/message";
 import { APIRecorder } from "../api-recorder";
 import { ResourceTracker } from "../resource-tracker";
 
@@ -11,12 +11,12 @@ export class GPUXXXHook {
   private static tracker = ResourceTracker.getInstance();
   private static msg = Msg.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
-  
+
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   // 钩子入口方法
   static hookGPUXXX<T extends GPUXXX>(xxx: T, methodsList: string[] = []): T {
     const proto = Object.getPrototypeOf(xxx);
-    
+
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
       // 添加其他需要拦截的方法...
@@ -32,9 +32,9 @@ export class GPUXXXHook {
   }
 
   // 钩子入口原型方法
-  static hookGPUXXXPrototype(methodsList: string[] = []){
+  static hookGPUXXXPrototype(methodsList: string[] = []) {
     // const proto = GPUXXX.prototype;
-    
+
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
       // 添加其他需要拦截的方法...
@@ -48,10 +48,10 @@ export class GPUXXXHook {
   }
 
   // 方法劫持核心逻辑
-  private static hookMethod( proto: any, methodName: string) {
+  private static hookMethod(proto: any, methodName: string) {
     // 获取原始方法
     const originalMethod = proto[methodName];
-    
+
     // 验证方法存在
     if (!originalMethod) {
       throw new Error(`Method ${methodName} not found on GPUxxx`);
@@ -59,7 +59,7 @@ export class GPUXXXHook {
 
     // 创建包装器并替换方法
     proto[methodName] = function wrappedMethod(...args: any[]) {
-      GPUXXXHook.msg.log(`[GPUxxx] ${methodName} hooked`);
+      GPUXXXHook.msg.log(MsgLevel.level_3, `[GPUxxx] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);

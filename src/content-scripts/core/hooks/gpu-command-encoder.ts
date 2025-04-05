@@ -1,4 +1,4 @@
-import { Msg } from "../../../global/message";
+import { Msg, MsgLevel } from "../../../global/message";
 import { APIRecorder } from "../api-recorder";
 import { CommandTracker } from "../command-tracker";
 import { ResourceTracker } from "../resource-tracker";
@@ -13,13 +13,13 @@ export class GPUCommandEncoderHook {
   private static msg = Msg.getInstance();
   private static res = ResourceTracker.getInstance();
   private static APIrecorder = APIRecorder.getInstance();
-  
+
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private curPassNum = 0;
   private curEncoderID = 0;
   private static hookPassMap: {
-    pass: GPUComputePassEncoder|GPURenderPassEncoder,
-    hook: GPUComputePassEncoderHook|GPURenderPassEncoderHook
+    pass: GPUComputePassEncoder | GPURenderPassEncoder,
+    hook: GPUComputePassEncoderHook | GPURenderPassEncoderHook
   }[] = [];
 
   constructor(encoderID: number) {
@@ -27,9 +27,9 @@ export class GPUCommandEncoderHook {
   }
   // 钩子入口方法
   hookGPUCommandEncoder<T extends GPUCommandEncoder>
-  (cmdencoder: T, methodsList: string[] = []): T {
+    (cmdencoder: T, methodsList: string[] = []): T {
     const proto = Object.getPrototypeOf(cmdencoder);
-    
+
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
       // 'beginComputePass',
@@ -57,11 +57,11 @@ export class GPUCommandEncoderHook {
     return cmdencoder;
   }
   // 方法劫持核心逻辑
-  private hookMethod( proto: any, methodName: string) {
+  private hookMethod(proto: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
     const originalMethod = proto[methodName];
-    
+
     // 验证方法存在
     if (!originalMethod) {
       throw new Error(`Method ${methodName} not found on GPUCommandEncoder`);
@@ -69,7 +69,7 @@ export class GPUCommandEncoderHook {
 
     // 创建包装器并替换方法
     proto[methodName] = function wrappedMethod(...args: any[]) {
-      GPUCommandEncoderHook.msg.log(`[GPUCommandEncoder] ${methodName} hooked`);
+      GPUCommandEncoderHook.msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
@@ -98,7 +98,7 @@ export class GPUCommandEncoderHook {
   private hookBeginRenderPass(proto: any) {
     const self_this = this;
     const originalMethod = proto['beginRenderPass'];
-    proto['beginRenderPass'] = function wrappedMethod(descriptor:any) {
+    proto['beginRenderPass'] = function wrappedMethod(descriptor: any) {
       try {
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
@@ -106,18 +106,18 @@ export class GPUCommandEncoderHook {
           self_this.curEncoderID,
           self_this.curPassNum,
           'beginRenderPass',
-           descriptor);
+          descriptor);
 
         // 记录 API 调用
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginRenderPass',[descriptor]);
+        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginRenderPass', [descriptor]);
         // 劫持 pass, 并记录
         const hook = new GPURenderPassEncoderHook(
-           self_this.curEncoderID,
-           self_this.curPassNum);
-           self_this.curPassNum += 1;
+          self_this.curEncoderID,
+          self_this.curPassNum);
+        self_this.curPassNum += 1;
         hook.hookGPURenderPassEncoder(pass);
-        GPUCommandEncoderHook.hookPassMap.push({pass,hook});
-        
+        GPUCommandEncoderHook.hookPassMap.push({ pass, hook });
+
         return pass;
       } catch (error) {
         GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] beginRenderPass error: `, error);
@@ -133,7 +133,7 @@ export class GPUCommandEncoderHook {
   private hookBeginComputePass(proto: any) {
     const self_this = this;
     const originalMethod = proto['beginComputePass'];
-    proto['beginComputePass'] = function wrappedMethod(descriptor:any) {
+    proto['beginComputePass'] = function wrappedMethod(descriptor: any) {
       try {
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
@@ -141,22 +141,22 @@ export class GPUCommandEncoderHook {
           self_this.curEncoderID,
           self_this.curPassNum,
           'beginComputePass',
-           descriptor);
+          descriptor);
         // 记录 API 调用
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginComputePass',[descriptor]);
+        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginComputePass', [descriptor]);
         // 劫持 pass, 并记录
         const hook = new GPUComputePassEncoderHook(
-           self_this.curEncoderID,
-           self_this.curPassNum);
-           self_this.curPassNum += 1;
+          self_this.curEncoderID,
+          self_this.curPassNum);
+        self_this.curPassNum += 1;
         hook.hookGPUComputePassEncoder(pass);
-        GPUCommandEncoderHook.hookPassMap.push({pass,hook});
+        GPUCommandEncoderHook.hookPassMap.push({ pass, hook });
 
         return pass;
-     } catch (error) {
+      } catch (error) {
         GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] beginComputePass error: `, error);
         throw error;
-     }
+      }
     }
     if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
       GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
@@ -167,7 +167,7 @@ export class GPUCommandEncoderHook {
   private hookFinish(proto: any) {
     const self_this = this;
     const originalMethod = proto['finish'];
-    proto['finish'] = function wrappedMethod(descriptor:any) {
+    proto['finish'] = function wrappedMethod(descriptor: any) {
       try {
         const commandbuffer = originalMethod.apply(this, [descriptor]);
         GPUCommandEncoderHook.cmd.recordEncodercmd(self_this.curEncoderID, 'finish', [descriptor]);
@@ -200,10 +200,10 @@ export class GPUCommandEncoderHook {
 
     // 全部 unhook 
     for (let { pass, hook } of GPUCommandEncoderHook.hookPassMap) {
-      if(hook instanceof GPUComputePassEncoderHook) {
+      if (hook instanceof GPUComputePassEncoderHook) {
         hook.unhookGPUComputePassEncoder(pass as GPUComputePassEncoder);
       }
-      if(hook instanceof GPURenderPassEncoderHook) {
+      if (hook instanceof GPURenderPassEncoderHook) {
         hook.unhookGPURenderPassEncoder(pass as GPURenderPassEncoder);
       }
     }

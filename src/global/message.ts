@@ -9,16 +9,19 @@ export const MsgType = {
   Frame: "FRAME_JSON",
 };
 
+export enum MsgLevel {
+  level_1 = 1,  // important
+  level_2 = 2,  // normal 
+  level_3 = 3   // unimportant
+}
+
 /**
  * @brief 信息发送
 
  */
 export class Msg{
   private static MsgCtrl : Msg;
-
-  private log_1 : boolean = false;
-  private log_2 : boolean = false;
-  private log_3 : boolean = false;
+  private static Loglevel = MsgLevel.level_2;
 
   private constructor(){}
 
@@ -37,16 +40,28 @@ export class Msg{
     }), "*");
   }
 
-  setLog(log_1 : boolean, log_2 : boolean, log_3 : boolean){
-    this.log_1 = log_1;
-    this.log_2 = log_2;
-    this.log_3 = log_3;
+  setLogLevel(level: MsgLevel){
+    Msg.Loglevel = level;
   }
 
-  log(...data: any[]){
-    if(this.log_1){
-      console.log(...data);
-    }
+  log(level: MsgLevel, ...data: any[]){
+    // 获取调用栈信息，并且输出
+    const error = new Error();
+    const stackLines = error.stack?.split('\n') || [];
+    const callerLine = stackLines[2]?.trim(); // Skip first 2 entries
+
+    const match = callerLine?.match(/at (.+) \((.*):(\d+):(\d+)\)/);
+
+    if(level <= Msg.Loglevel){
+      if (match) {
+        const [_, callerMethod, file, line, column] = match;
+        const position = `${file}:${line}`;
+        
+        console.log(`[${position}]`, ...data);
+      } else {
+        console.log(...data);
+      }
+    } 
   }
 
   error(message: string, ...data: any[]) {

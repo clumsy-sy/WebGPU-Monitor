@@ -8,7 +8,7 @@ import { Msg } from "../../global/message";
 export class APIRecorder {
   // 单例模式
   private static instance: APIRecorder;
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance() {
     if (!APIRecorder.instance) {
@@ -24,7 +24,7 @@ export class APIRecorder {
 
   recordMethodCall(methodName: string, args: any[]) {
     const startTime = performance.now();
-    
+
     // 处理资源参数转换
     const processedArgs = args.map(arg => {
       if (this.resTracker.resourceMap.has(arg)) {
@@ -34,7 +34,7 @@ export class APIRecorder {
     });
 
     const record: APIRecord = {
-      id: this.curID ++,
+      id: this.curID++,
       timestamp: startTime,
       method: methodName,
       args: processedArgs
