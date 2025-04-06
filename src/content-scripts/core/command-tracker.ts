@@ -15,7 +15,6 @@ interface EncoderCmd {
   timeStamp: number
 }
 
-
 interface EncoderBaseCmd {
   eid: number,
   basetype: 'baseCmd';
@@ -65,7 +64,7 @@ export class RenderPassTracker {
    * @param type 类型
    * @param args 参数
    */
-  recordCmd(eid: number, type: string, args: any[]) {
+  recordPassCmd(eid: number, type: string, args: any[]) {
     if (this.IsEnd === true) {
       RenderPassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
@@ -136,7 +135,7 @@ export class ComputePassTracker {
    * @param type 类型
    * @param args 参数
    */
-  recordCmd(eid: number, type: string, args: any[]) {
+  recordPassCmd(eid: number, type: string, args: any[]) {
     if (this.IsEnd === true) {
       ComputePassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
@@ -225,10 +224,10 @@ export class EncoderTracker {
       EncoderTracker.msg.error('[cmd]recordPasscmd : pass not found', passID);
     }
     console.log(`passid = ${passID} ${type}`);
-    this.passMap.get(passID)?.recordCmd(eid, type, args);
+    this.passMap.get(passID)?.recordPassCmd(eid, type, args);
   }
 
-  recordCmd(eid: number, type: string, args: any[]) {
+  recordEncoderCmd(eid: number, type: string, args: any[]) {
     EncoderTracker.res.replaceResourcesInArray(args);
     this.cmdQueue.push({ eid, type, args });
   }
@@ -321,6 +320,9 @@ export class EncoderTracker {
 // }
 
 export class CommandTracker {
+  // 资源库实例
+  private static res = ResourceTracker.getInstance();
+  private static msg = Msg.getInstance();
   /**
    * @brief CommandTracker 单例
    */
@@ -332,9 +334,6 @@ export class CommandTracker {
     }
     return CommandTracker.instance;
   }
-
-  private static res = ResourceTracker.getInstance();
-  private static msg = Msg.getInstance();
 
   // command event id
   Eid: number = 0;
@@ -361,7 +360,7 @@ export class CommandTracker {
       CommandTracker.msg.error('[cmd]recordEncodercmd : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
-    encoder.recordCmd(this.Eid++, type, args);
+    encoder.recordEncoderCmd(this.Eid++, type, args);
   }
 
   recoderPassCreate(encoderID: number, passID: number, type: string, desc: any) {
@@ -380,12 +379,11 @@ export class CommandTracker {
     if (!encoder.passMap.has(passID)) {
       CommandTracker.msg.error('[cmd]recordPasscmd : pass not found', 'passID = ', passID);
     }
-    console.log(`passid = ${passID} ${type}`);
     const pass = encoder.passMap.get(passID);
     if (pass instanceof RenderPassTracker) {
-      pass.recordCmd(this.Eid++, type, args);
+      pass.recordPassCmd(this.Eid++, type, args);
     } else if (pass instanceof ComputePassTracker) {
-      pass.recordCmd(this.Eid++, type, args);
+      pass.recordPassCmd(this.Eid++, type, args);
     }
   }
 

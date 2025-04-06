@@ -5,6 +5,9 @@ import { APIRecorder } from "./api-recorder";
 
 
 export class FrameRecorder {
+  res = ResourceTracker.getInstance();
+  cmd = CommandTracker.getInstance();
+  api = APIRecorder.getInstance();
 
   private msg = Msg.getInstance();
   /**
@@ -31,9 +34,6 @@ export class FrameRecorder {
   frameWidth: number = 0;
   frameHeight: number = 0;
 
-  res = ResourceTracker.getInstance();
-  cmd = CommandTracker.getInstance();
-  api = APIRecorder.getInstance();
 
   CanvasConf: GPUCanvasConfiguration | {} = {};
   AdapterOptions: GPURequestAdapterOptions | {} = {};
@@ -116,4 +116,11 @@ export class FrameRecorder {
     }, 2));
     this.msg.log(MsgLevel.level_2, "[Frame]-------------------------------");
   }
+
+  APILog() {
+    this.msg.log(MsgLevel.level_3, "[API]-------------------------------");
+    this.msg.log(MsgLevel.level_3, this.api.getAllRecords());
+    this.msg.log(MsgLevel.level_3, "[API]-------------------------------");
+  }
+
 }

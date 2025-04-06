@@ -6,6 +6,8 @@ import { Msg } from "../../global/message";
  * @brief 用于跟踪和标识资源，并管理资源生命周期。
  */
 export class ResourceTracker {
+  // 消息实例
+  msg = Msg.getInstance();
 
   /**
    * @brief 单例模式，用于创建资源跟踪器。
@@ -23,7 +25,6 @@ export class ResourceTracker {
   // 资源 MAP
   resourceMap = new Map<any, ResInfo>();
   resourceIDMap = new Map<number, any>();
-  msg = Msg.getInstance();
 
   /**
    * @brief 生成唯一 ID，跟踪资源。
@@ -57,6 +58,9 @@ export class ResourceTracker {
         id = Utils.genUniqueNumber();
         this.replaceResourcesInDesc(desc);
         break;
+    }
+    if(this.resourceMap.has(resource)) {
+      console.warn(`[res]track : resource already exists`, resource);
     }
     // 跟踪资源
     if (id !== 0) {
@@ -128,11 +132,11 @@ export class ResourceTracker {
    * @returns ResourceInfo
    */
   getResInfo(resource: any) {
-    // if(this.resourceMap.has(resource)){
-    return this.resourceMap.get(resource);
-    // } else {
-    //   this.msg.error('[res]getResInfo : resource not found', resource);
-    // }
+    if(this.resourceMap.has(resource)){
+      return this.resourceMap.get(resource);
+    } else {
+      this.msg.error('[res]getResInfo : resource not found', resource);
+    }
   }
 
   /**
@@ -168,7 +172,13 @@ export class ResourceTracker {
     return Array.from(this.resourceMap.values());
   }
   untrack(resource: any) {
-    this.resourceMap.delete(resource);
+    const id = this.getResID(resource);
+    if (id) {
+      this.resourceIDMap.delete(id);
+      this.resourceMap.delete(resource);
+    } else {
+      this.msg.error('[res]untrack : resource not found', resource);
+    }
   }
 
   destory() {
