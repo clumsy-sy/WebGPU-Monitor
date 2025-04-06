@@ -25,7 +25,7 @@ function sendMessageToDevTools(data: any) {
  */
 function messageHandler(message: any) {
   if (!message.data) {
-    return;
+    return false;
   }
   // 解析消息
 
@@ -38,7 +38,7 @@ function messageHandler(message: any) {
   // 检查消息是否来自注入脚本
   if (message.source !== window || !receivedData.type) {
     console.log("[cs-si]Message from unknown source");
-    return;
+    return false;
   }
 
   if (receivedData.type === MsgType.WebGPU) {
@@ -52,8 +52,9 @@ function messageHandler(message: any) {
   } else if (receivedData.type === MsgType.Frame) {
     sendMessageToDevTools(message.data);
   } else {
-    return;
+    return false;
   }
+  return true;
 }
 
 (function () {
@@ -88,6 +89,7 @@ function messageHandler(message: any) {
       } else {
         console.log("[cs-si]Message from unknown source:", receivedData);
       }
+      return true;
     });
   });
 

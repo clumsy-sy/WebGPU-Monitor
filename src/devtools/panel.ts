@@ -94,6 +94,7 @@ function portListener(port: chrome.runtime.Port) {
     } else {
       console.log("[panel] Message received in panel.js:", receivedData);
     }
+    return true;
   });
 }
 
