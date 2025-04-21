@@ -15,7 +15,6 @@ export class GPUXXXHook {
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   // 钩子入口方法
   static hookGPUXXX<T extends GPUXXX>(xxx: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(xxx);
 
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
@@ -25,7 +24,7 @@ export class GPUXXXHook {
 
     // 遍历并劫持方法
     methodsToHook.forEach(methodName => {
-      this.hookMethod(proto, methodName);
+      this.hookMethod(xxx, methodName);
     });
 
     return xxx;
@@ -48,9 +47,9 @@ export class GPUXXXHook {
   }
 
   // 方法劫持核心逻辑
-  private static hookMethod(proto: any, methodName: string) {
+  private static hookMethod(instance: any, methodName: string) {
     // 获取原始方法
-    const originalMethod = proto[methodName];
+    const originalMethod = instance[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
@@ -58,7 +57,7 @@ export class GPUXXXHook {
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
+    instance[methodName] = function wrappedMethod(...args: any[]) {
       GPUXXXHook.msg.log(MsgLevel.level_3, `[GPUxxx] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
@@ -76,24 +75,23 @@ export class GPUXXXHook {
         // todo: 添加性能追踪逻辑
       }
     };
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(instance)) {
+      this.hookedMethods.set(instance, new Map());
     }
 
     // 保存原始方法引用
-    this.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    this.hookedMethods.get(instance)?.set(methodName, originalMethod);
   }
 
   // 复原函数入口方法
   static unhookGPUXXX<T extends GPUXXX>(xxx: T): T {
-    const proto = Object.getPrototypeOf(xxx);
-    const protoMethods = this.hookedMethods.get(proto);
-    if (protoMethods) {
-      protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
-      });
-      this.hookedMethods.delete(proto);
-    }
+    // const protoMethods = this.hookedMethods.get(xxx);
+    // if (protoMethods) {
+    //   protoMethods.forEach((original, methodName) => {
+    //     xxx[methodName] = original;
+    //   });
+    //   this.hookedMethods.delete(xxx);
+    // }
     return xxx;
   }
 

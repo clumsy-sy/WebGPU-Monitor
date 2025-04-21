@@ -64,9 +64,31 @@ export class Msg{
     } 
   }
 
+  warn(message: string, ...data: any[]) {
+    const error = new Error();
+    const stackLines = error.stack?.split('\n') || [];
+    const callerLine = stackLines[2]?.trim(); // Skip first 2 entries
+    console.warn(`[${callerLine}]`, message);
+  }
+
   error(message: string, ...data: any[]) {
     console.log(...data);
     throw new Error(message);
+  }
+
+  public trace(): void {
+    const error = new Error();
+    const stackLines = error.stack?.split('\n') || [];
+    const callerLine = stackLines[3]?.trim(); // 跳过前三行：Error构造函数、trace方法内部、Msg.trace调用
+  
+    if (callerLine) {
+      const match = callerLine.match(/at (.+) \((.*):(\d+):(\d+)\)/);
+      if (match) {
+        const [_, callerMethod, file, line, column] = match;
+        const position = `${file}:${line}`;
+        console.log(`[${position}]`);
+      }
+    }
   }
 
 };

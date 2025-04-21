@@ -14,6 +14,7 @@ import { FrameRecorder } from './core/frame-recorder';
       console.log("[cs-si]Capture begin.");
       frame.captureState.msg = true;
     }
+    return true;
   });
 
   // 注入拦截初始化

@@ -4,6 +4,7 @@ import { GPUDeviceHook } from "./hooks/gpu-device";
 import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
 import { APIRecorder } from "./api-recorder";
+import { GPUTextureHook } from "./hooks/gpu-texture";
 
 let frameCnt = 0;
 let lastFrameTime = performance.now();
@@ -25,7 +26,6 @@ function frameRegistered() {
     recoder.reset();
     msg.log(MsgLevel.level_1, "[main] URL changed, reset frame counter.");
   }
-  // fixme callback 可能发生变化
 
   // 计算 FPS
   {
@@ -151,31 +151,8 @@ function hookGPUCanvasContext() {
     res.track(texture, {}, 'getCurrentTexture');
     api.recordMethodCall('getCurrentTexture', []);
     if (texture) {
-      // 劫持 texture.createView
-      const originalCreateView = texture.createView;
-      texture.createView = function wrappedMethod(descriptor: any) {
-        try {
-          const view = originalCreateView.apply(this, [descriptor]);
-          res.track(view, { parent: texture, descriptor }, 'createTextureView');
-          api.recordMethodCall('createTextureView', [descriptor]);
-          return view;
-        } catch (error) {
-          msg.error(`[GPUDevice] createTextureView error: `, error);
-          throw error;
-        }
-      }
-      // 劫持 texture.destroy
-      const originalDestroy = texture.destroy;
-      texture.destroy = function wrappedMethod() {
-        try {
-          originalDestroy.apply(this, []);
-          res.untrack(texture);
-          // todo: 删除纹理对应的视图
-          api.recordMethodCall('destroy', []);
-        } catch (error) {
-          msg.error(`[GPUDevice] destroy error: `, error);
-        }
-      }
+      const hook = new GPUTextureHook(texture);
+      hook.hookGPUTexture(texture);
     }
     return texture;
   };
@@ -233,8 +210,8 @@ export function hookInit() {
 
 
   // 对 WebGPU 的关键 API 函数进行拦截
-  hookGPUCanvasContext();
   hookGPUAdapter();
+  hookGPUCanvasContext();
 
   // 主动的分割浏览器的帧
   requestAnimationFrame(frameRegistered);

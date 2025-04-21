@@ -23,7 +23,6 @@ export class GPUComputePassEncoderHook {
   // 钩子入口方法
   hookGPUComputePassEncoder<T extends GPUComputePassEncoder>
     (pass: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(pass);
 
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
@@ -41,17 +40,17 @@ export class GPUComputePassEncoderHook {
 
     // 遍历并劫持方法
     methodsToHook.forEach(methodName => {
-      this.hookMethod(proto, methodName);
+      this.hookMethod(pass, methodName);
     });
 
     return pass;
   }
 
   // 方法劫持核心逻辑
-  private hookMethod(proto: any, methodName: string) {
+  private hookMethod(instance: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
-    const originalMethod = proto[methodName];
+    const originalMethod = instance[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
@@ -59,7 +58,7 @@ export class GPUComputePassEncoderHook {
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
+    instance[methodName] = function wrappedMethod(...args: any[]) {
       GPUComputePassEncoderHook.msg.log(MsgLevel.level_3, `[GPUComputePassEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
@@ -78,30 +77,28 @@ export class GPUComputePassEncoderHook {
       }
     };
 
-    if (!GPUComputePassEncoderHook.hookedMethods.has(proto)) {
-      GPUComputePassEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPUComputePassEncoderHook.hookedMethods.has(instance)) {
+      GPUComputePassEncoderHook.hookedMethods.set(instance, new Map());
     }
 
     // 保存原始方法引用
-    GPUComputePassEncoderHook.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    GPUComputePassEncoderHook.hookedMethods.get(instance)?.set(methodName, originalMethod);
   }
 
   // 复原函数入口方法
-  unhookGPUComputePassEncoder<T extends GPUComputePassEncoder>(cmdencoder: T): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
-    const protoMethods = GPUComputePassEncoderHook.hookedMethods.get(proto);
+  unhookGPUComputePassEncoder<T extends GPUComputePassEncoder>(pass: T): T {
+    const protoMethods = GPUComputePassEncoderHook.hookedMethods.get(pass);
     if (protoMethods) {
       protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
-        GPUComputePassEncoderHook.msg.log(MsgLevel.level_3, `[GPUComputePassEncoder] ${methodName} unhooked`);
+        (pass as { [key: string]: any })[methodName] = original;
+        // GPUComputePassEncoderHook.msg.log(MsgLevel.level_3, `[GPUComputePassEncoder] ${methodName} unhooked`);
       });
-      GPUComputePassEncoderHook.hookedMethods.delete(proto);
+      GPUComputePassEncoderHook.hookedMethods.delete(pass);
     }
-    return cmdencoder;
+    return pass;
   }
 
   // todo: maybe bindDestroyHook
-
 }
 
 
@@ -125,7 +122,6 @@ export class GPURenderPassEncoderHook {
   // 钩子入口方法
   hookGPURenderPassEncoder<T extends GPURenderPassEncoder>
     (pass: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(pass);
 
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
@@ -154,17 +150,17 @@ export class GPURenderPassEncoderHook {
 
     // 遍历并劫持方法
     methodsToHook.forEach(methodName => {
-      this.hookMethod(proto, methodName);
+      this.hookMethod(pass, methodName);
     });
 
     return pass;
   }
 
   // 方法劫持核心逻辑
-  private hookMethod(proto: any, methodName: string) {
+  private hookMethod(instance: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
-    const originalMethod = proto[methodName];
+    const originalMethod = instance[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
@@ -172,13 +168,12 @@ export class GPURenderPassEncoderHook {
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
+    instance[methodName] = function wrappedMethod(...args: any[]) {
       // GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
         // 记录 Cmd
-        console.log(`[GPURenderPassEncoder] ${methodName} ${self_this.curPassID} `);
         GPURenderPassEncoderHook.cmd.recordPassCmd(self_this.curEncoderID, self_this.curPassID, methodName, args);
         // 记录 API 调用
         GPURenderPassEncoderHook.APIrecorder.recordMethodCall(methodName, args);
@@ -192,26 +187,25 @@ export class GPURenderPassEncoderHook {
       }
     };
 
-    if (!GPURenderPassEncoderHook.hookedMethods.has(proto)) {
-      GPURenderPassEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPURenderPassEncoderHook.hookedMethods.has(instance)) {
+      GPURenderPassEncoderHook.hookedMethods.set(instance, new Map());
     }
 
     // 保存原始方法引用
-    GPURenderPassEncoderHook.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    GPURenderPassEncoderHook.hookedMethods.get(instance)?.set(methodName, originalMethod);
   }
 
   // 复原函数入口方法
-  unhookGPURenderPassEncoder<T extends GPURenderPassEncoder>(cmdencoder: T): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
-    const protoMethods = GPURenderPassEncoderHook.hookedMethods.get(proto);
+  unhookGPURenderPassEncoder<T extends GPURenderPassEncoder>(pass: T): T {
+    const protoMethods = GPURenderPassEncoderHook.hookedMethods.get(pass);
     if (protoMethods) {
       protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
+        (pass as { [key: string]: any })[methodName] = original;
         // GPURenderPassEncoderHook.msg.log(`[GPURenderPassEncoder] ${methodName} unhooked`);
       });
-      GPURenderPassEncoderHook.hookedMethods.delete(proto);
+      GPURenderPassEncoderHook.hookedMethods.delete(pass);
     }
-    return cmdencoder;
+    return pass;
   }
 
   // todo: maybe bindDestroyHook

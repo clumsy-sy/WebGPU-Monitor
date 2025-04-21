@@ -55,8 +55,8 @@ export class RenderPassTracker {
 
   constructor(eid: number, desc?: GPURenderPassDescriptor) {
     this.startEid = eid;
-    RenderPassTracker.res.replaceResourcesInDesc(desc);
-    this.descriptor = desc;
+    const descCopy = RenderPassTracker.res.replaceResourcesInDesc(desc);
+    this.descriptor = descCopy;
   }
 
   /**
@@ -69,8 +69,8 @@ export class RenderPassTracker {
       RenderPassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
     if (type === 'end') this.setEnd();
-    RenderPassTracker.res.replaceResourcesInArray(args);
-    this.CmdQueue.push({ eid, type, args });
+    const resArrCopy = RenderPassTracker.res.replaceResourcesInArray(args);
+    this.CmdQueue.push({ eid, type, args: resArrCopy });
   }
 
   outputRecord(): RenderPassRecord {
@@ -126,8 +126,8 @@ export class ComputePassTracker {
 
   constructor(eid: number, desc?: GPUComputePassDescriptor) {
     this.startEid = eid;
-    ComputePassTracker.res.replaceResourcesInDesc(desc);
-    this.descriptor = desc;
+    const descCopy = ComputePassTracker.res.replaceResourcesInDesc(desc);
+    this.descriptor = descCopy;
   }
 
   /**
@@ -140,8 +140,8 @@ export class ComputePassTracker {
       ComputePassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
     }
     if (type === 'end') this.setEnd();
-    ComputePassTracker.res.replaceResourcesInArray(args);
-    this.CmdQueue.push({ eid, type, args });
+    const resArrCopy = ComputePassTracker.res.replaceResourcesInArray(args);
+    this.CmdQueue.push({ eid, type, args: resArrCopy });
   }
 
   outputRecord(): ComputePassRecord {
@@ -197,8 +197,8 @@ export class EncoderTracker {
   constructor(id: number, desc?: GPUCommandEncoderDescriptor) {
     this.EncoderID = id;
     this.timeStamp = performance.now();
-    EncoderTracker.res.replaceResourcesInDesc(desc);
-    this.descriptor = desc;
+    const descCopy = EncoderTracker.res.replaceResourcesInDesc(desc);
+    this.descriptor = descCopy;
   }
 
   createPass(eid: number, id: number, type: string, desc: GPUComputePassDescriptor | GPUComputePassDescriptor | undefined) {
@@ -228,8 +228,8 @@ export class EncoderTracker {
   }
 
   recordEncoderCmd(eid: number, type: string, args: any[]) {
-    EncoderTracker.res.replaceResourcesInArray(args);
-    this.cmdQueue.push({ eid, type, args });
+    const resArrCopy = EncoderTracker.res.replaceResourcesInArray(args);
+    this.cmdQueue.push({ eid, type, args: resArrCopy });
   }
 
   outputRecord(): EncoderCmd {
@@ -344,8 +344,8 @@ export class CommandTracker {
   recordCmd(type: string, args: any[]) {
     let eid: number = this.Eid++;
     let time: number = performance.now();
-    CommandTracker.res.replaceResourcesInArray(args);
-    const cmd: cmdInfo = { eid, type, args, time }
+    const resArrCopy = CommandTracker.res.replaceResourcesInArray(args);
+    const cmd: cmdInfo = { eid, type, args: resArrCopy, time }
     this.CmdQueue.push(cmd);
   }
 

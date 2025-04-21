@@ -4,6 +4,7 @@ import { CommandTracker } from "../command-tracker";
 import { FrameRecorder } from "../frame-recorder";
 import { ResourceTracker } from "../resource-tracker";
 import { GPUCommandEncoderHook } from "./gpu-command-encoder";
+import { GPUTextureHook } from "./gpu-texture";
 
 /**
  * @class GPUDeviceHook
@@ -26,7 +27,6 @@ export class GPUDeviceHook {
   }[] = [];
   // 钩子入口方法
   static hookDevice<T extends GPUDevice>(device: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(device);
 
     // 需要拦截的WebGPU Device API列表
     const methodsToHook: string[] = [
@@ -49,16 +49,16 @@ export class GPUDeviceHook {
     ];
 
     methodsToHook.forEach(methodName => {
-      this.hookMethod(proto, methodName);
+      this.hookMethod(device, methodName);
     });
 
     // 特殊处理
     // 'createBuffer'
-    this.hookBuffer(proto);
+    this.hookBuffer(device);
     // 'createTexture'
-    this.hookTexture(proto);
+    this.hookTexture(device);
     // 'createCommandEncoder'
-    this.hookCommandEncoder(proto);
+    this.hookCommandEncoder(device);
 
     // queue
     this.hookGPUQueue(device.queue, []);
@@ -67,8 +67,8 @@ export class GPUDeviceHook {
   }
 
   // 方法劫持核心逻辑
-  private static hookMethod(proto: any, methodName: string) {
-    const originalMethod = proto[methodName];
+  private static hookMethod(device: any, methodName: string) {
+    const originalMethod = device[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
@@ -76,7 +76,7 @@ export class GPUDeviceHook {
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
+    device[methodName] = function wrappedMethod(...args: any[]) {
       // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
       try {
         const result = originalMethod.apply(this, args);
@@ -91,17 +91,17 @@ export class GPUDeviceHook {
       }
     };
 
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
     }
 
     // 保存原始方法引用
-    this.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    this.hookedMethods.get(device)?.set(methodName, originalMethod);
   }
 
-  private static hookBuffer(proto: any) {
-    const originalMethod = proto['createBuffer'];
-    proto['createBuffer'] = function wrappedMethod(descriptor: any) {
+  private static hookBuffer(device: any) {
+    const originalMethod = device['createBuffer'];
+    device['createBuffer'] = function wrappedMethod(descriptor: any) {
       try {
         const buffer = originalMethod.apply(this, [descriptor]);
         GPUDeviceHook.res.track(buffer, descriptor, 'createBuffer');
@@ -141,62 +141,48 @@ export class GPUDeviceHook {
       }
     };
 
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
     }
-    this.hookedMethods.get(proto)?.set('createBuffer', originalMethod);
+    this.hookedMethods.get(device)?.set('createBuffer', originalMethod);
   }
 
-  private static hookTexture(proto: any) {
-    const originalMethod = proto['createTexture'];
-    proto['createTexture'] = function wrappedMethod(descriptor: any) {
+  private static hookTexture(device: any) {
+    const originalMethod = device['createTexture'];
+    device['createTexture'] = function wrappedMethod(descriptor: any) {
       try {
+        // 调用原始方法创建纹理
         const texture = originalMethod.apply(this, [descriptor]);
+  
+        // 验证 texture 是否为有效对象
+        if (!texture || !(texture instanceof GPUTexture)) {
+          throw new Error("Invalid GPUTexture object created.");
+        }
+  
+        // 跟踪纹理资源
         GPUDeviceHook.res.track(texture, descriptor, 'createTexture');
         GPUDeviceHook.APIrecorder.recordMethodCall('createTexture', [descriptor]);
-
-        if (texture) {
-          // 劫持 texture.createView
-          const originalCreateView = texture.createView;
-          texture.createView = function wrappedMethod(descriptor: any) {
-            try {
-              const view = originalCreateView.apply(this, [descriptor]);
-              GPUDeviceHook.res.track(view, { parent: texture, descriptor }, 'createTextureView');
-              GPUDeviceHook.APIrecorder.recordMethodCall('createTextureView', [descriptor]);
-              return view;
-            } catch (error) {
-              GPUDeviceHook.msg.error(`[GPUDevice] createTextureView error: `, error);
-              throw error;
-            }
-          }
-          // 劫持 texture.destroy
-          const originalDestroy = texture.destroy;
-          texture.destroy = function wrappedMethod() {
-            try {
-              originalDestroy.apply(this, []);
-              GPUDeviceHook.res.untrack(texture);
-              // todo: 删除纹理对应的视图
-              GPUDeviceHook.APIrecorder.recordMethodCall('destroy', []);
-            } catch (error) {
-              GPUDeviceHook.msg.error(`[GPUDevice] destroy error: `, error);
-            }
-          }
-        }
-
+  
+        const hook = new GPUTextureHook(texture);
+        hook.hookGPUTexture(texture);
+  
         return texture;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] createTexture error: `, error);
+        GPUDeviceHook.msg.error(`[GPUDevice] createTexture error (descriptor: ${JSON.stringify(descriptor)})`, error);
+        throw error;
       }
+    };
+  
+    // 保存原始方法引用
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
     }
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
-    }
-    this.hookedMethods.get(proto)?.set('createTexture', originalMethod);
+    this.hookedMethods.get(device)?.set('createTexture', originalMethod);
   }
 
-  private static hookCommandEncoder(proto: any) {
-    const originalMethod = proto['createCommandEncoder'];
-    proto['createCommandEncoder'] = function wrappedMethod(descriptor: any) {
+  private static hookCommandEncoder(device: any) {
+    const originalMethod = device['createCommandEncoder'];
+    device['createCommandEncoder'] = function wrappedMethod(descriptor: any) {
       try {
         const encoder = originalMethod.apply(this, [descriptor]);
         if (GPUDeviceHook.recoder.captureState.active) {
@@ -227,15 +213,13 @@ export class GPUDeviceHook {
         throw error;
       }
     }
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
     }
-    this.hookedMethods.get(proto)?.set('createCommandEncoder', originalMethod);
+    this.hookedMethods.get(device)?.set('createCommandEncoder', originalMethod);
   }
 
   static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(queue);
-
     const methodsToHook: string[] = [
       'copyExternalImageToTexture',
       'onSubmittedWorkDone',
@@ -247,51 +231,49 @@ export class GPUDeviceHook {
     ];
 
     methodsToHook.forEach(methodName => {
-      this.hookQueueMethod(proto, methodName);
+      this.hookQueueMethod(queue, methodName);
     });
 
     // 特殊处理
-    this.hookQueueWriteBuffer(proto);
+    this.hookQueueWriteBuffer(queue);
 
     return queue
   }
 
-  private static hookQueueMethod(proto: any, methodName: string) {
-    const originalMethod = proto[methodName];
+  private static hookQueueMethod(queue: any, methodName: string) {
+    const originalMethod = queue[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
-      throw new Error(`Method ${methodName} not found on GPUDevice`);
+      throw new Error(`Method ${methodName} not found on GPUDeviceQueue`);
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
-      // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
+    queue[methodName] = function wrappedMethod(...args: any[]) {
       try {
         const result = originalMethod.apply(this, args);
-        // todo: writebuffer ... don't need active
         if (GPUDeviceHook.recoder.captureState.active) {
           GPUDeviceHook.cmd.recordCmd(methodName, args);
           GPUDeviceHook.APIrecorder.recordMethodCall(methodName, args);
         }
         return result;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] ${methodName} error: `, error);
+        GPUDeviceHook.msg.error(`[GPUDeviceQueue] ${methodName} error: `, error);
         throw error;
       }
     };
 
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(queue)) {
+      this.hookedMethods.set(queue, new Map());
     }
 
     // 保存原始方法引用
-    this.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    this.hookedMethods.get(queue)?.set(methodName, originalMethod);
   }
 
-  private static hookQueueWriteBuffer(proto: any) {
-    const originalMethod = proto['writeBuffer'];
-    proto['writeBuffer'] = function wrappedMethod(...args: any[]) {
+  private static hookQueueWriteBuffer(queue: any) {
+    const originalMethod = queue['writeBuffer'];
+    queue['writeBuffer'] = function wrappedMethod(...args: any[]) {
       try {
         const result = originalMethod.apply(this, args);
         if (GPUDeviceHook.recoder.captureState.active) {
@@ -331,59 +313,42 @@ export class GPUDeviceHook {
         }
         return result;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] writeBuffer error: `, error);
+        GPUDeviceHook.msg.error(`[GPUDeviceQueue] writeBuffer error: `, error);
         throw error;
       }
     }
-    if (!this.hookedMethods.has(proto)) {
-      this.hookedMethods.set(proto, new Map());
+    if (!this.hookedMethods.has(queue)) {
+      this.hookedMethods.set(queue, new Map());
     }
-    this.hookedMethods.get(proto)?.set('writeBuffer', originalMethod);
+    this.hookedMethods.get(queue)?.set('writeBuffer', originalMethod);
   }
 
   static unhookGPUDevice<T extends GPUDevice>(device: T): T {
-    const proto = Object.getPrototypeOf(device);
-
     // 遍历所有被劫持的方法并恢复
-    const protoMethods = this.hookedMethods.get(proto);
-    if (protoMethods) {
-      protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
+    const deviceMethods = this.hookedMethods.get(device);
+    if (deviceMethods) {
+      deviceMethods.forEach((original, methodName) => {
+        (device as { [key: string]: any})[methodName] = original;
       });
-      this.hookedMethods.delete(proto);
+      this.hookedMethods.delete(device);
     }
 
     return device;
   }
 
   static unhookGPUQueue<T extends GPUQueue>(queue: T): T {
-    const proto = Object.getPrototypeOf(queue);
 
     // 遍历所有被劫持的方法并恢复
-    const protoMethods = this.hookedMethods.get(proto);
-    if (protoMethods) {
-      protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
+    const deviceMethods = this.hookedMethods.get(queue);
+    if (deviceMethods) {
+      deviceMethods.forEach((original, methodName) => {
+        (queue as { [key: string]: any})[methodName] = original;
       });
-      this.hookedMethods.delete(proto);
+      this.hookedMethods.delete(queue);
     }
     return queue;
   }
 
   // 绑定资源销毁监听
-  // private static bindDestroyHook(
-  //   resource: GPUObjectBase,
-  //   methodName: string
-  // ) {
-  //   const originalDestroy = resource.destroy.bind(resource);
 
-  //   resource.destroy = function wrappedDestroy() {
-  //     GPUDeviceHook.res.logRelease({
-  //       type: methodName,
-  //       id: resource.toString(),
-  //       timestamp: performance.now()
-  //     });
-  //     return originalDestroy();
-  //   };
-  // }
 }

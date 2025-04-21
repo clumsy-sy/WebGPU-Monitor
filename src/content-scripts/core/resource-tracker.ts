@@ -32,11 +32,12 @@ export class ResourceTracker {
    */
   track(resource: any, desc: any, type = 'res') {
     let id: number = 0;
+    let descCopy: any = {};
     switch (type) {
       case 'pipeline':
         id = Utils.genUniqueNumber();
         if (desc.layout != 'auto') {
-          this.replaceResourcesInDesc(desc);
+          descCopy = this.replaceResourcesInDesc(desc);
         }
         desc.vertex.module = this.getResInfo(desc.vertex.module)?.id;
         desc.fragment.module = this.getResInfo(desc.fragment.module)?.id;
@@ -54,9 +55,16 @@ export class ResourceTracker {
           this.msg.error(`[bufferData] bufferDataMap not found`);
         }
         break;
+      case 'createView':
+        id = Utils.genUniqueNumber();
+        descCopy = {
+          parent: this.getResID(desc.parent),
+          desc: desc.desc
+        }
+        break;
       default:
         id = Utils.genUniqueNumber();
-        this.replaceResourcesInDesc(desc);
+        descCopy = this.replaceResourcesInDesc(desc);
         break;
     }
     if(this.resourceMap.has(resource)) {
@@ -65,11 +73,85 @@ export class ResourceTracker {
     // 跟踪资源
     if (id !== 0) {
       this.resourceIDMap.set(id, resource);
-      this.resourceMap.set(resource, { id, type, desc });
+      this.resourceMap.set(resource, { id, type, desc:descCopy });
     } else {
       this.msg.error(`[res]track : resource no id`);
     }
     return id;
+  }
+
+  private deepCloneWithReplacement(obj: any): any {
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.deepCloneWithReplacement(item));
+    } else if (typeof obj === "object" && obj !== null) {
+      const clone: Record<string, any> = {};
+      for (const [key, value] of Object.entries(obj)) {
+        if (this.resourceMap.has(value)) {
+          clone[key] = this.getResID(value);
+        } else {
+          clone[key] = this.deepCloneWithReplacement(value);
+        }
+      }
+      return clone;
+    }
+    return obj;
+  }
+
+  private deepCopy<T>(source: T): T {
+    // 基本类型直接返回
+    if (typeof source !== 'object' || source === null) {
+      return source;
+    }
+
+    if(this.resourceMap.has(source)) {
+      return this.getResID(source) as any ;
+    }
+  
+    // 处理数组
+    if (Array.isArray(source)) {
+      return source.map((item, index) => 
+        this.deepCopy(item)
+      ) as any;
+    }
+    // 处理对象
+    const copy: any = {};
+    for (const key in source) {
+      if (source.hasOwnProperty(key)) {
+        copy[key] = this.deepCopy((source as any)[key]);
+      }
+    }
+    return copy;
+  }
+
+  private replaceResources(obj: any, clone: boolean = true): any {
+    let cloneObj: any;
+  
+    if (clone) {
+      // 使用深度克隆并替换资源
+      // cloneObj = this.deepCloneWithReplacement(obj);
+      cloneObj = this.deepCopy(obj);
+      obj = cloneObj;
+    }
+  
+    // 递归遍历替换资源引用
+    // const traverse = (currentItem: any, parent: any, key: string | number | null) => {
+    //   if (this.resourceMap.has(currentItem)) {
+    //     if (parent && key !== null) {
+    //       parent[key] = this.getResID(currentItem);
+    //     }
+    //     return;
+    //   }
+  
+    //   if (typeof currentItem === "object" && currentItem !== null) {
+    //     if (Array.isArray(currentItem)) {
+    //       currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
+    //     } else {
+    //       Object.entries(currentItem).forEach(([k, v]) => traverse(v, currentItem, k));
+    //     }
+    //   }
+    // };
+    // traverse(obj, null, null);
+    return clone ? cloneObj : obj;
   }
 
   /**
@@ -77,53 +159,43 @@ export class ResourceTracker {
    * @param obj 需要遍历的对象
    * @todo 优化，WeakSet 记录被替换的资源，避免重复替换
    */
-  replaceResourcesInDesc(obj: any): void {
-    const traverse = (currentItem: any, parent: any, key: number | string | null) => {
-      // 首先检查当前项是否是资源实例
-      if (this.resourceMap.has(currentItem)) {
-        if (parent && key !== null) {
-          parent[key] = this.getResID(currentItem); // 直接替换为ID
-        }
-        return;
-      }
-      // 非对象或null则跳过
-      if (typeof currentItem !== 'object' || currentItem === null) return;
-      // 处理数组
-      if (Array.isArray(currentItem)) {
-        currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
-      } else {
-        Object.entries(currentItem).forEach(([k, v]) => {
-          traverse(v, currentItem, k);
-        });
-      }
-    };
-    traverse(obj, null, null);
-  }
+  // replaceResourcesInDesc(obj: any): void {
+  //   const traverse = (currentItem: any, parent: any, key: number | string | null) => {
+  //     // 首先检查当前项是否是资源实例
+  //     if (this.resourceMap.has(currentItem)) {
+  //       if (parent && key !== null) {
+  //         parent[key] = this.getResID(currentItem); // 直接替换为ID
+  //       }
+  //       return;
+  //     }
+  //     // 非对象或null则跳过
+  //     if (typeof currentItem !== 'object' || currentItem === null) return;
+  //     // 处理数组
+  //     if (Array.isArray(currentItem)) {
+  //       currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
+  //     } else {
+  //       Object.entries(currentItem).forEach(([k, v]) => {
+  //         traverse(v, currentItem, k);
+  //       });
+  //     }
+  //   };
+  //   traverse(obj, null, null);
+  // }
+
+
 
   // 在 ResourceTracker 类中添加以下方法
-  replaceResourcesInArray(arr: any[]): void {
-    const traverse = (currentItem: any, parent: any, key: number | string | null) => {
-      // 首先检查当前项是否是资源实例
-      if (this.resourceMap.has(currentItem)) {
-        if (parent && key !== null) {
-          parent[key] = this.getResID(currentItem); // 直接替换为ID
-        }
-        return;
-      }
-      // 非对象或null则跳过
-      if (typeof currentItem !== 'object' || currentItem === null) return;
-      // 处理数组
-      if (Array.isArray(currentItem)) {
-        currentItem.forEach((child, idx) => traverse(child, currentItem, idx));
-      } else {
-        Object.entries(currentItem).forEach(([k, v]) => {
-          traverse(v, currentItem, k);
-        });
-      }
-    };
-    arr.forEach((item, index) => {
-      traverse(item, arr, index);
-    });
+  
+  replaceResourcesInDesc(obj: any): any {
+    // this.msg.trace();
+    // console.log(`[res] compare obj, \n ${obj}, \n ${this.replaceResources(obj, true)}`);
+    return this.replaceResources(obj, true); // 克隆并返回新对象
+  }
+
+  replaceResourcesInArray(arr: any[]): any[] {
+    // this.msg.trace();
+    // console.log(`[resarr] compare obj, \n ${arr}, \n ${this.replaceResources(arr, true)}`);
+    return this.replaceResources(arr, true); // 直接修改原数组
   }
 
   /**
@@ -149,6 +221,15 @@ export class ResourceTracker {
       return this.resourceMap.get(resource)?.id;
     } else {
       this.msg.error('[res]getResID : resource not found', resource);
+    }
+  }
+
+  checkResource(resource: any) {
+    if (this.resourceMap.has(resource)) {
+      return true;
+    } else {
+      this.msg.error('[res]checkResource : resource not found', resource);
+      return false;
     }
   }
 

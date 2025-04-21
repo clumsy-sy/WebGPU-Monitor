@@ -28,7 +28,6 @@ export class GPUCommandEncoderHook {
   // 钩子入口方法
   hookGPUCommandEncoder<T extends GPUCommandEncoder>
     (cmdencoder: T, methodsList: string[] = []): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
 
     // 需要拦截的 WebGPU XXX API列表
     const methodsToHook: string[] = [
@@ -46,21 +45,21 @@ export class GPUCommandEncoderHook {
 
     // 遍历并劫持方法
     methodsToHook.forEach(methodName => {
-      this.hookMethod(proto, methodName);
+      this.hookMethod(cmdencoder, methodName);
     });
 
     // 特殊处理
-    this.hookBeginRenderPass(proto);
-    this.hookBeginComputePass(proto);
-    this.hookFinish(proto);
+    this.hookBeginRenderPass(cmdencoder);
+    this.hookBeginComputePass(cmdencoder);
+    this.hookFinish(cmdencoder);
 
     return cmdencoder;
   }
   // 方法劫持核心逻辑
-  private hookMethod(proto: any, methodName: string) {
+  private hookMethod(cmdencoder: any, methodName: string) {
     const self_this = this;
     // 获取原始方法
-    const originalMethod = proto[methodName];
+    const originalMethod = cmdencoder[methodName];
 
     // 验证方法存在
     if (!originalMethod) {
@@ -68,7 +67,7 @@ export class GPUCommandEncoderHook {
     }
 
     // 创建包装器并替换方法
-    proto[methodName] = function wrappedMethod(...args: any[]) {
+    cmdencoder[methodName] = function wrappedMethod(...args: any[]) {
       GPUCommandEncoderHook.msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
@@ -87,19 +86,20 @@ export class GPUCommandEncoderHook {
       }
     };
 
-    if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
-      GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPUCommandEncoderHook.hookedMethods.has(cmdencoder)) {
+      GPUCommandEncoderHook.hookedMethods.set(cmdencoder, new Map());
     }
 
     // 保存原始方法引用
-    GPUCommandEncoderHook.hookedMethods.get(proto)?.set(methodName, originalMethod);
+    GPUCommandEncoderHook.hookedMethods.get(cmdencoder)?.set(methodName, originalMethod);
   }
 
-  private hookBeginRenderPass(proto: any) {
+  private hookBeginRenderPass(cmdencoder: any) {
     const self_this = this;
-    const originalMethod = proto['beginRenderPass'];
-    proto['beginRenderPass'] = function wrappedMethod(descriptor: any) {
+    const originalMethod = cmdencoder['beginRenderPass'];
+    cmdencoder['beginRenderPass'] = function wrappedMethod(descriptor: any) {
       try {
+        console.log('[GPUCommandEncoder] beginRenderPass hooked des = ', descriptor);
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
         GPUCommandEncoderHook.cmd.recoderPassCreate(
@@ -124,16 +124,16 @@ export class GPUCommandEncoderHook {
         throw error;
       }
     }
-    if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
-      GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPUCommandEncoderHook.hookedMethods.has(cmdencoder)) {
+      GPUCommandEncoderHook.hookedMethods.set(cmdencoder, new Map());
     }
-    GPUCommandEncoderHook.hookedMethods.get(proto)?.set('beginRenderPass', originalMethod);
+    GPUCommandEncoderHook.hookedMethods.get(cmdencoder)?.set('beginRenderPass', originalMethod);
   }
 
-  private hookBeginComputePass(proto: any) {
+  private hookBeginComputePass(cmdencoder: any) {
     const self_this = this;
-    const originalMethod = proto['beginComputePass'];
-    proto['beginComputePass'] = function wrappedMethod(descriptor: any) {
+    const originalMethod = cmdencoder['beginComputePass'];
+    cmdencoder['beginComputePass'] = function wrappedMethod(descriptor: any) {
       try {
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
@@ -158,16 +158,16 @@ export class GPUCommandEncoderHook {
         throw error;
       }
     }
-    if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
-      GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPUCommandEncoderHook.hookedMethods.has(cmdencoder)) {
+      GPUCommandEncoderHook.hookedMethods.set(cmdencoder, new Map());
     }
-    GPUCommandEncoderHook.hookedMethods.get(proto)?.set('beginComputePass', originalMethod);
+    GPUCommandEncoderHook.hookedMethods.get(cmdencoder)?.set('beginComputePass', originalMethod);
   }
 
-  private hookFinish(proto: any) {
+  private hookFinish(cmdencoder: any) {
     const self_this = this;
-    const originalMethod = proto['finish'];
-    proto['finish'] = function wrappedMethod(descriptor: any) {
+    const originalMethod = cmdencoder['finish'];
+    cmdencoder['finish'] = function wrappedMethod(descriptor: any) {
       try {
         const commandbuffer = originalMethod.apply(this, [descriptor]);
         GPUCommandEncoderHook.cmd.recordEncodercmd(self_this.curEncoderID, 'finish', [descriptor]);
@@ -180,22 +180,21 @@ export class GPUCommandEncoderHook {
       }
     }
 
-    if (!GPUCommandEncoderHook.hookedMethods.has(proto)) {
-      GPUCommandEncoderHook.hookedMethods.set(proto, new Map());
+    if (!GPUCommandEncoderHook.hookedMethods.has(cmdencoder)) {
+      GPUCommandEncoderHook.hookedMethods.set(cmdencoder, new Map());
     }
-    GPUCommandEncoderHook.hookedMethods.get(proto)?.set('finish', originalMethod);
+    GPUCommandEncoderHook.hookedMethods.get(cmdencoder)?.set('finish', originalMethod);
   }
 
   // 复原函数入口方法
   unhookGPUCommandEncoder<T extends GPUCommandEncoder>(cmdencoder: T): T {
-    const proto = Object.getPrototypeOf(cmdencoder);
-    const protoMethods = GPUCommandEncoderHook.hookedMethods.get(proto);
-    if (protoMethods) {
-      protoMethods.forEach((original, methodName) => {
-        proto[methodName] = original;
+    const cmdencoderMethods = GPUCommandEncoderHook.hookedMethods.get(cmdencoder);
+    if (cmdencoderMethods) {
+      cmdencoderMethods.forEach((original, methodName) => {
+        (cmdencoder as { [key: string]: any })[methodName] = original;
         // GPUCommandEncoderHook.msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
       });
-      GPUCommandEncoderHook.hookedMethods.delete(proto);
+      GPUCommandEncoderHook.hookedMethods.delete(cmdencoder);
     }
 
     // 全部 unhook 
