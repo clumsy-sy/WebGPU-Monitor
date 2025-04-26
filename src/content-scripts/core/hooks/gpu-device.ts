@@ -1,8 +1,4 @@
-import { Msg } from "../../../global/message";
-import { APIRecorder } from "../api-recorder";
-import { CommandTracker } from "../command-tracker";
-import { FrameRecorder } from "../frame-recorder";
-import { ResourceTracker } from "../resource-tracker";
+import { res, msg, cmd, APIrecorder, recoder } from "./gpu-global"
 import { GPUCommandEncoderHook } from "./gpu-command-encoder";
 import { GPUTextureHook } from "./gpu-texture";
 
@@ -11,12 +7,6 @@ import { GPUTextureHook } from "./gpu-texture";
  * @description 拦截GPUDevice相关方法，并记录调用信息
  */
 export class GPUDeviceHook {
-  private static res = ResourceTracker.getInstance();
-  private static msg = Msg.getInstance();
-  private static cmd = CommandTracker.getInstance();
-
-  private static APIrecorder = APIRecorder.getInstance();
-  private static recoder = FrameRecorder.getInstance();
 
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private static activeFlag: boolean = false;
@@ -80,11 +70,11 @@ export class GPUDeviceHook {
       // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
       try {
         const result = originalMethod.apply(this, args);
-        GPUDeviceHook.res.track(result, args, methodName);
-        GPUDeviceHook.APIrecorder.recordMethodCall(methodName, args);
+        res.track(result, args, methodName);
+        APIrecorder.recordMethodCall(methodName, args);
         return result;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] ${methodName} error: `, error);
+        msg.error(`[GPUDevice] ${methodName} error: `, error);
         throw error;
       } finally {
 
@@ -104,8 +94,8 @@ export class GPUDeviceHook {
     device['createBuffer'] = function wrappedMethod(descriptor: any) {
       try {
         const buffer = originalMethod.apply(this, [descriptor]);
-        GPUDeviceHook.res.track(buffer, descriptor, 'createBuffer');
-        GPUDeviceHook.APIrecorder.recordMethodCall('createBuffer', [descriptor]);
+        res.track(buffer, descriptor, 'createBuffer');
+        APIrecorder.recordMethodCall('createBuffer', [descriptor]);
 
         if (descriptor.mappedAtCreation) {
           const originalGetMappedRange = buffer.getMappedRange;
@@ -114,7 +104,7 @@ export class GPUDeviceHook {
           buffer.getMappedRange = function (...args: any[]): ArrayBufferView {
             const result = originalGetMappedRange.apply(this, args);
             mappedRange = result;
-            GPUDeviceHook.APIrecorder.recordMethodCall('getMappedRange', args);
+            APIrecorder.recordMethodCall('getMappedRange', args);
             return result;
           };
 
@@ -123,11 +113,11 @@ export class GPUDeviceHook {
           buffer.unmap = function () {
             if (mappedRange) {
               let uint8Data = new Uint8Array(mappedRange as any);
-              GPUDeviceHook.res.track(mappedRange, {
+              res.track(mappedRange, {
                 buffer: buffer,
                 data: [...uint8Data]
               }, 'bufferData');
-              GPUDeviceHook.APIrecorder.recordMethodCall('unmap', []);
+              APIrecorder.recordMethodCall('unmap', []);
             }
             const result = originalUnmap.call(this);
             return result;
@@ -136,7 +126,7 @@ export class GPUDeviceHook {
 
         return buffer;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] createBuffer error: `, error);
+        msg.error(`[GPUDevice] createBuffer error: `, error);
         throw error;
       }
     };
@@ -160,15 +150,15 @@ export class GPUDeviceHook {
         }
   
         // 跟踪纹理资源
-        GPUDeviceHook.res.track(texture, descriptor, 'createTexture');
-        GPUDeviceHook.APIrecorder.recordMethodCall('createTexture', [descriptor]);
+        res.track(texture, descriptor, 'createTexture');
+        APIrecorder.recordMethodCall('createTexture', [descriptor]);
   
         const hook = new GPUTextureHook(texture);
         hook.hookGPUTexture(texture);
   
         return texture;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDevice] createTexture error (descriptor: ${JSON.stringify(descriptor)})`, error);
+        msg.error(`[GPUDevice] createTexture error (descriptor: ${JSON.stringify(descriptor)})`, error);
         throw error;
       }
     };
@@ -185,11 +175,11 @@ export class GPUDeviceHook {
     device['createCommandEncoder'] = function wrappedMethod(descriptor: any) {
       try {
         const encoder = originalMethod.apply(this, [descriptor]);
-        if (GPUDeviceHook.recoder.captureState.active) {
+        if (recoder.captureState.active) {
           // 记录 cmd
-          GPUDeviceHook.cmd.recordEncoderCreate(GPUDeviceHook.hookedEncoder, descriptor);
+          cmd.recordEncoderCreate(GPUDeviceHook.hookedEncoder, descriptor);
           // 记录 api
-          GPUDeviceHook.APIrecorder.recordMethodCall('createCommandEncoder', [descriptor]);
+          APIrecorder.recordMethodCall('createCommandEncoder', [descriptor]);
           // 创建hookEncoder, 并hook
           const hook = new GPUCommandEncoderHook(GPUDeviceHook.hookedEncoder);
           hook.hookGPUCommandEncoder(encoder);
@@ -207,8 +197,8 @@ export class GPUDeviceHook {
         }
         return encoder;
       } catch (error) {
-        if (GPUDeviceHook.recoder.captureState.active) {
-          GPUDeviceHook.msg.error(`[GPUDevice] createCommandEncoder error: `, error);
+        if (recoder.captureState.active) {
+          msg.error(`[GPUDevice] createCommandEncoder error: `, error);
         }
         throw error;
       }
@@ -252,13 +242,13 @@ export class GPUDeviceHook {
     queue[methodName] = function wrappedMethod(...args: any[]) {
       try {
         const result = originalMethod.apply(this, args);
-        if (GPUDeviceHook.recoder.captureState.active) {
-          GPUDeviceHook.cmd.recordCmd(methodName, args);
-          GPUDeviceHook.APIrecorder.recordMethodCall(methodName, args);
+        if (recoder.captureState.active) {
+          cmd.recordCmd(methodName, args);
+          APIrecorder.recordMethodCall(methodName, args);
         }
         return result;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDeviceQueue] ${methodName} error: `, error);
+        msg.error(`[GPUDeviceQueue] ${methodName} error: `, error);
         throw error;
       }
     };
@@ -276,7 +266,7 @@ export class GPUDeviceHook {
     queue['writeBuffer'] = function wrappedMethod(...args: any[]) {
       try {
         const result = originalMethod.apply(this, args);
-        if (GPUDeviceHook.recoder.captureState.active) {
+        if (recoder.captureState.active) {
           const [buffer, bufferOffset, data, dataOffset, size] = args;
           // 1. 创建数据副本（避免直接引用可能被修改的原始数据）
           let dataCopy: ArrayBuffer;
@@ -296,7 +286,7 @@ export class GPUDeviceHook {
           // 将ArrayBuffer转换为Uint8Array以便存储
 
           // 2. 生成唯一标识并存储到资源跟踪器
-          const dataId = GPUDeviceHook.res.track(data, {
+          const dataId = res.track(data, {
             data: [...new Uint8Array(dataCopy)]
           }, 'writeBufferData');
 
@@ -308,12 +298,12 @@ export class GPUDeviceHook {
             dataOffset || 0,
             size || dataCopy.byteLength,
           ];
-          GPUDeviceHook.cmd.recordCmd('writeBuffer', callMeta);
-          GPUDeviceHook.APIrecorder.recordMethodCall('writeBuffer', args);
+          cmd.recordCmd('writeBuffer', callMeta);
+          APIrecorder.recordMethodCall('writeBuffer', args);
         }
         return result;
       } catch (error) {
-        GPUDeviceHook.msg.error(`[GPUDeviceQueue] writeBuffer error: `, error);
+        msg.error(`[GPUDeviceQueue] writeBuffer error: `, error);
         throw error;
       }
     }

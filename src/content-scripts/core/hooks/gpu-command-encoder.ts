@@ -1,7 +1,4 @@
-import { Msg, MsgLevel } from "../../../global/message";
-import { APIRecorder } from "../api-recorder";
-import { CommandTracker } from "../command-tracker";
-import { ResourceTracker } from "../resource-tracker";
+import { res, msg, cmd, APIrecorder, recoder, MsgLevel } from "./gpu-global"
 import { GPUComputePassEncoderHook, GPURenderPassEncoderHook } from "./gpu-pass-encoder";
 
 /**
@@ -9,11 +6,6 @@ import { GPUComputePassEncoderHook, GPURenderPassEncoderHook } from "./gpu-pass-
  * @description 
  */
 export class GPUCommandEncoderHook {
-  private static cmd = CommandTracker.getInstance();
-  private static msg = Msg.getInstance();
-  private static res = ResourceTracker.getInstance();
-  private static APIrecorder = APIRecorder.getInstance();
-
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   private curPassNum = 0;
   private curEncoderID = 0;
@@ -68,18 +60,18 @@ export class GPUCommandEncoderHook {
 
     // 创建包装器并替换方法
     cmdencoder[methodName] = function wrappedMethod(...args: any[]) {
-      GPUCommandEncoderHook.msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
+      msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
         // 记录资源
-        GPUCommandEncoderHook.cmd.recordEncodercmd(self_this.curEncoderID, methodName, args);
+        cmd.recordEncodercmd(self_this.curEncoderID, methodName, args);
         // 记录 API 调用
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall(methodName, args);
+        APIrecorder.recordMethodCall(methodName, args);
         // 返回结果
         return result;
       } catch (error) {
-        GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] ${methodName} error: `, error);
+        msg.error(`[GPUCommandEncoder] ${methodName} error: `, error);
         throw error;
       } finally {
         // todo: 添加性能追踪逻辑
@@ -102,14 +94,14 @@ export class GPUCommandEncoderHook {
         console.log('[GPUCommandEncoder] beginRenderPass hooked des = ', descriptor);
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
-        GPUCommandEncoderHook.cmd.recoderPassCreate(
+        cmd.recoderPassCreate(
           self_this.curEncoderID,
           self_this.curPassNum,
           'beginRenderPass',
           descriptor);
 
         // 记录 API 调用
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginRenderPass', [descriptor]);
+        APIrecorder.recordMethodCall('beginRenderPass', [descriptor]);
         // 劫持 pass, 并记录
         const hook = new GPURenderPassEncoderHook(
           self_this.curEncoderID,
@@ -120,7 +112,7 @@ export class GPUCommandEncoderHook {
 
         return pass;
       } catch (error) {
-        GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] beginRenderPass error: `, error);
+        msg.error(`[GPUCommandEncoder] beginRenderPass error: `, error);
         throw error;
       }
     }
@@ -137,13 +129,13 @@ export class GPUCommandEncoderHook {
       try {
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
-        GPUCommandEncoderHook.cmd.recoderPassCreate(
+        cmd.recoderPassCreate(
           self_this.curEncoderID,
           self_this.curPassNum,
           'beginComputePass',
           descriptor);
         // 记录 API 调用
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall('beginComputePass', [descriptor]);
+        APIrecorder.recordMethodCall('beginComputePass', [descriptor]);
         // 劫持 pass, 并记录
         const hook = new GPUComputePassEncoderHook(
           self_this.curEncoderID,
@@ -154,7 +146,7 @@ export class GPUCommandEncoderHook {
 
         return pass;
       } catch (error) {
-        GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] beginComputePass error: `, error);
+        msg.error(`[GPUCommandEncoder] beginComputePass error: `, error);
         throw error;
       }
     }
@@ -170,12 +162,12 @@ export class GPUCommandEncoderHook {
     cmdencoder['finish'] = function wrappedMethod(descriptor: any) {
       try {
         const commandbuffer = originalMethod.apply(this, [descriptor]);
-        GPUCommandEncoderHook.cmd.recordEncodercmd(self_this.curEncoderID, 'finish', [descriptor]);
-        GPUCommandEncoderHook.APIrecorder.recordMethodCall('finish', [descriptor]);
-        GPUCommandEncoderHook.res.track(commandbuffer, descriptor, 'GPUCommandBuffer');
+        cmd.recordEncodercmd(self_this.curEncoderID, 'finish', [descriptor]);
+        APIrecorder.recordMethodCall('finish', [descriptor]);
+        res.track(commandbuffer, descriptor, 'GPUCommandBuffer');
         return commandbuffer;
       } catch (error) {
-        GPUCommandEncoderHook.msg.error(`[GPUCommandEncoder] finish error: `, error);
+        msg.error(`[GPUCommandEncoder] finish error: `, error);
         throw error;
       }
     }
@@ -192,7 +184,7 @@ export class GPUCommandEncoderHook {
     if (cmdencoderMethods) {
       cmdencoderMethods.forEach((original, methodName) => {
         (cmdencoder as { [key: string]: any })[methodName] = original;
-        // GPUCommandEncoderHook.msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
+        // msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
       });
       GPUCommandEncoderHook.hookedMethods.delete(cmdencoder);
     }

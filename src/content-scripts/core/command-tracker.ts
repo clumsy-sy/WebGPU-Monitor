@@ -1,6 +1,10 @@
 import { Utils, cmdInfo } from "../../global/utils";
 import { Msg } from "../../global/message";
 import { ResourceTracker } from "./resource-tracker"
+// 资源库实例
+const res = ResourceTracker.getInstance();
+// 消息实例
+const msg = Msg.getInstance();
 
 enum PassCmdType {
   RenderPass = "RenderPass",
@@ -38,11 +42,12 @@ interface ComputePassRecord {
   descriptor: GPUComputePassDescriptor | undefined;
 }
 
+/**
+ * @class RenderPassTracker
+ * @brief 封装renderpass相关命令
+ */
 export class RenderPassTracker {
-  // 资源库实例
-  static res: ResourceTracker = ResourceTracker.getInstance();
-  // 消息实例
-  static msg = Msg.getInstance();
+
   // renderpass id
   PassID: number = 0;
   // renderpass 类型
@@ -53,26 +58,34 @@ export class RenderPassTracker {
   IsEnd: boolean = false;
   startEid: number = 0;
 
+  /**
+   * @param eid event id
+   * @param desc type GPURenderPassDescriptor
+   */
   constructor(eid: number, desc?: GPURenderPassDescriptor) {
     this.startEid = eid;
-    const descCopy = RenderPassTracker.res.replaceResourcesInDesc(desc);
+    const descCopy = res.replaceResourcesInDesc(desc);
     this.descriptor = descCopy;
   }
 
   /**
    * @brief 命令记录
-   * @param type 类型
-   * @param args 参数
+   * @param eid event id
+   * @param type 命令类型
+   * @param args 命令参数[]
    */
   recordPassCmd(eid: number, type: string, args: any[]) {
     if (this.IsEnd === true) {
-      RenderPassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
+      msg.error('[cmd]recordCmd : render pass already end', type);
     }
     if (type === 'end') this.setEnd();
-    const resArrCopy = RenderPassTracker.res.replaceResourcesInArray(args);
+    const resArrCopy = res.replaceResourcesInArray(args);
     this.CmdQueue.push({ eid, type, args: resArrCopy });
   }
 
+  /**
+   * @returns renderpass记录
+   */
   outputRecord(): RenderPassRecord {
     const pass: RenderPassRecord = {
       id: this.PassID,
@@ -90,18 +103,15 @@ export class RenderPassTracker {
   getPassID() {
     return this.PassID;
   }
-
   setEnd() {
     this.IsEnd = true;
   }
   checkEnd() {
     return this.IsEnd;
   }
-
   getAllCmds() {
     return this.CmdQueue;
   }
-
   destory() {
     this.IsEnd = false;
     this.CmdQueue = [];
@@ -109,11 +119,11 @@ export class RenderPassTracker {
 
 }
 
+/**
+ * @class ComputePassTracker
+ * @brief 封装computePass相关命令
+ */
 export class ComputePassTracker {
-  // 资源库实例
-  static res: ResourceTracker = ResourceTracker.getInstance();
-  // 消息实例
-  static msg = Msg.getInstance();
   // Computepass id
   PassID: number = 0;
   // Computepass 类型
@@ -124,26 +134,34 @@ export class ComputePassTracker {
   IsEnd: boolean = false;
   startEid: number = 0;
 
+  /**
+   * @param eid event id
+   * @param desc type GPUComputePassDescriptor
+   */
   constructor(eid: number, desc?: GPUComputePassDescriptor) {
     this.startEid = eid;
-    const descCopy = ComputePassTracker.res.replaceResourcesInDesc(desc);
+    const descCopy = res.replaceResourcesInDesc(desc);
     this.descriptor = descCopy;
   }
 
   /**
    * @brief 命令记录
-   * @param type 类型
-   * @param args 参数
+   * @param eid event id
+   * @param type 命令类型
+   * @param args 命令参数[]
    */
   recordPassCmd(eid: number, type: string, args: any[]) {
     if (this.IsEnd === true) {
-      ComputePassTracker.msg.error('[cmd]recordCmd : render pass already end', type);
+      msg.error('[cmd]recordCmd : render pass already end', type);
     }
     if (type === 'end') this.setEnd();
-    const resArrCopy = ComputePassTracker.res.replaceResourcesInArray(args);
+    const resArrCopy = res.replaceResourcesInArray(args);
     this.CmdQueue.push({ eid, type, args: resArrCopy });
   }
 
+  /**
+   * @returns computePass记录
+   */
   outputRecord(): ComputePassRecord {
     const pass: ComputePassRecord = {
       id: this.PassID,
@@ -161,18 +179,15 @@ export class ComputePassTracker {
   getPassID() {
     return this.PassID;
   }
-
   setEnd() {
     this.IsEnd = true;
   }
   checkEnd() {
     return this.IsEnd;
   }
-
   getAllCmds() {
     return this.CmdQueue;
   }
-
   destory() {
     this.IsEnd = false;
     this.CmdQueue = [];
@@ -180,27 +195,44 @@ export class ComputePassTracker {
 
 }
 
-
+/**
+ * @class EncoderTracker
+ * @brief 封装 Enocder
+ */
 export class EncoderTracker {
-  private static msg = Msg.getInstance();
-  private static res = ResourceTracker.getInstance();
-
+  // 命令队列 id
   EncoderID: number = 0;
+  // pass number
   PassCnt: number = 0;
+  // pass []
   cmdQueue: (RenderPassTracker | ComputePassTracker | { eid: number, type: string, args: any[] })[] = [];
+  // 是否提交
   IsSubmit: boolean = false;
+  // 时间
   timeStamp: number = 0;
+  // Encoder 描述符
   descriptor: GPUCommandEncoderDescriptor | undefined;
-
+  // pass map
   passMap: Map<number, (RenderPassTracker | ComputePassTracker)> = new Map();
 
+  /**
+   * @param id encoder id
+   * @param desc type GPUCommandEncoderDescriptor
+   */
   constructor(id: number, desc?: GPUCommandEncoderDescriptor) {
     this.EncoderID = id;
     this.timeStamp = performance.now();
-    const descCopy = EncoderTracker.res.replaceResourcesInDesc(desc);
+    const descCopy = res.replaceResourcesInDesc(desc);
     this.descriptor = descCopy;
   }
 
+  /**
+   * @brief 创建pass
+   * @param eid event id
+   * @param id pass id
+   * @param type pass 类型
+   * @param desc 描述 GPUComputePassDescriptor | GPUComputePassDescriptor
+   */
   createPass(eid: number, id: number, type: string, desc: GPUComputePassDescriptor | GPUComputePassDescriptor | undefined) {
     if (type === 'beginRenderPass') {
       const pass = new RenderPassTracker(eid, desc as GPURenderPassDescriptor);
@@ -215,23 +247,40 @@ export class EncoderTracker {
       this.PassCnt++;
       return pass;
     } else {
-      EncoderTracker.msg.error('[cmd]recordPasscmd : pass type error', type);
+      msg.error('[cmd]recordPasscmd : pass type error', type);
     }
   }
 
+  /**
+   * @brief 记录 pass 的命令
+   * @param passID pass id
+   * @param eid event id
+   * @param type 命令类型
+   * @param args 命令参数 any[]
+   */
+
   recordPassCmd(passID: number, eid: number, type: string, args: any[]) {
     if (!this.passMap.has(passID)) {
-      EncoderTracker.msg.error('[cmd]recordPasscmd : pass not found', passID);
+      msg.error('[cmd]recordPasscmd : pass not found', passID);
     }
     console.log(`passid = ${passID} ${type}`);
     this.passMap.get(passID)?.recordPassCmd(eid, type, args);
   }
 
+  /**
+   * @brief 记录 encoder 的命令
+   * @param eid event id
+   * @param type 命令类型
+   * @param args 命令参数 any[]
+   */
   recordEncoderCmd(eid: number, type: string, args: any[]) {
-    const resArrCopy = EncoderTracker.res.replaceResourcesInArray(args);
+    const resArrCopy = res.replaceResourcesInArray(args);
     this.cmdQueue.push({ eid, type, args: resArrCopy });
   }
 
+  /**
+   * @returns All Encoder command 
+   */
   outputRecord(): EncoderCmd {
     const records: (EncoderBaseCmd | RenderPassRecord | ComputePassRecord)[] = [];
 
@@ -265,28 +314,21 @@ export class EncoderTracker {
   getPass(id: number) {
     return this.passMap.get(id);
   }
-
   setEncoderID(id: number) {
     this.EncoderID = id;
   }
-
   getEncoderID() {
     return this.EncoderID;
   }
-
   getAllPasses() {
     return this.passMap.values();
   }
-
   setSubmit() {
     this.IsSubmit = true;
   }
-
   checkSubmit() {
     return this.IsSubmit;
   }
-
-
   destory() {
     for (const item of this.cmdQueue) {
       if (item instanceof RenderPassTracker || item instanceof ComputePassTracker) {
@@ -295,34 +337,14 @@ export class EncoderTracker {
     }
     this.cmdQueue = [];
   }
+
 }
 
-// export class WriteTracker{
-//   // 资源库实例
-//   static ResTracker: ResourceTracker = ResourceTracker.getInstance();
-//   WriteQueue: any[] = [];
-
-//   constructor(){
-//   }
-
-//   getAllWrites(){
-//     return this.WriteQueue;
-//   }
-
-//   addWrite(write: any){
-//     this.WriteQueue.push(write);
-//   }
-
-//   destory(){
-//     this.WriteQueue = [];
-//   }
-
-// }
-
+/**
+ * @class CommandTracker
+ * @brief 封装 所有 CommandBuffer 内部的命令
+ */
 export class CommandTracker {
-  // 资源库实例
-  private static res = ResourceTracker.getInstance();
-  private static msg = Msg.getInstance();
   /**
    * @brief CommandTracker 单例
    */
@@ -335,49 +357,77 @@ export class CommandTracker {
     return CommandTracker.instance;
   }
 
-  // command event id
+  // 分发 event id
   Eid: number = 0;
+  // 命令队列 EncoderTracker | cmdInfo
   CmdQueue: (EncoderTracker | cmdInfo)[] = [];
+  // 资源管理
   CmdMap: Map<number, EncoderTracker> = new Map();
 
   // todo sort cmd
   recordCmd(type: string, args: any[]) {
     let eid: number = this.Eid++;
     let time: number = performance.now();
-    const resArrCopy = CommandTracker.res.replaceResourcesInArray(args);
+    const resArrCopy = res.replaceResourcesInArray(args);
     const cmd: cmdInfo = { eid, type, args: resArrCopy, time }
     this.CmdQueue.push(cmd);
   }
 
+  /**
+   * @brief 记录 encoder 创建
+   * @param encoderID encoder id
+   * @param desc type GPUCommandEncoderDescriptor
+   */
   recordEncoderCreate(encoderID: number, desc?: GPUCommandEncoderDescriptor) {
     const encoder: EncoderTracker = new EncoderTracker(encoderID, desc);
     this.CmdMap.set(encoderID, encoder);
     this.CmdQueue.push(encoder);
   }
 
+  /**
+   * @brief 记录 encoder 命令
+   * @param encoderID encoder id
+   * @param type 命令类型
+   * @param args 命令参数 any[]
+   */
   recordEncodercmd(encoderID: number, type: string, args: any[]) {
     if (!this.CmdMap.has(encoderID)) {
-      CommandTracker.msg.error('[cmd]recordEncodercmd : encoder not found', encoderID);
+      msg.error('[cmd]recordEncodercmd : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
     encoder.recordEncoderCmd(this.Eid++, type, args);
   }
 
+  /**
+   * @brief 记录 pass 创建
+   * @param encoderID encoder id
+   * @param passID pass id
+   * @param type pass 类型
+   * @param desc 描述 GPUComputePassDescriptor | GPUComputePassDescriptor
+   */
+
   recoderPassCreate(encoderID: number, passID: number, type: string, desc: any) {
     if (!this.CmdMap.has(encoderID)) {
-      CommandTracker.msg.error('[cmd]recoderPassCreate : encoder not found', encoderID);
+     msg.error('[cmd]recoderPassCreate : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
     encoder.createPass(this.Eid++, passID, type, desc);
   }
 
+  /**
+   * @brief 记录 pass 命令
+   * @param encoderID encoder id
+   * @param passID pass id
+   * @param type pass 类型
+   * @param args 命令参数 any[]
+   */
   recordPassCmd(encoderID: number, passID: number, type: string, args: any[]) {
     if (!this.CmdMap.has(encoderID)) {
-      CommandTracker.msg.error('[cmd]recordPasscmd : encoder not found', encoderID);
+      msg.error('[cmd]recordPasscmd : encoder not found', encoderID);
     }
     const encoder = this.CmdMap.get(encoderID) as EncoderTracker;
     if (!encoder.passMap.has(passID)) {
-      CommandTracker.msg.error('[cmd]recordPasscmd : pass not found', 'passID = ', passID);
+      msg.error('[cmd]recordPasscmd : pass not found', 'passID = ', passID);
     }
     const pass = encoder.passMap.get(passID);
     if (pass instanceof RenderPassTracker) {
@@ -387,6 +437,7 @@ export class CommandTracker {
     }
   }
 
+  // 获取所有命令
   getAllCmds() {
     const recoders: (EncoderCmd | cmdInfo)[] = [];
     this.CmdQueue.forEach(cmd => {

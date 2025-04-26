@@ -1,5 +1,12 @@
 import { ResourceTracker } from './resource-tracker';
-import { Msg } from "../../global/message";
+
+
+interface APIRecord {
+  id: number;
+  method: string;
+  args: any[];
+  timestamp: number;
+}
 
 /**
  * @class APIRecorder
@@ -48,11 +55,4 @@ export class APIRecorder {
     return this.records;
   }
 
-}
-
-interface APIRecord {
-  id: number;
-  method: string;
-  args: any[];
-  timestamp: number;
 }

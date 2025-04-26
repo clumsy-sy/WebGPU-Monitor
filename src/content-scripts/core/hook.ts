@@ -19,9 +19,10 @@ const api = APIRecorder.getInstance();
  * @brief 主动 requestAnimationFrame 调用，来分割每一帧
  */
 function frameRegistered() {
-  // 检测 URL 变化
+  // 检测 URL 变化 
   if (lastUrl !== location.href) {
     lastUrl = location.href;
+    // reset
     frameCnt = 0;
     recoder.reset();
     msg.log(MsgLevel.level_1, "[main] URL changed, reset frame counter.");
@@ -33,7 +34,7 @@ function frameRegistered() {
     if (frameCnt > 0) {
       const deltaTime = currentFrameTime - lastFrameTime;
       const fps = Math.round(1000 / deltaTime);
-      // 向 dev 页面发生信息
+      // 向 dev 页面发信息
       msg.sendMessage(MsgType.Window, "time: ", { frameCnt, deltaTime, fps });
     }
 
@@ -64,72 +65,41 @@ function frameRegistered() {
   requestAnimationFrame(frameRegistered);
 }
 
-
 /**
- * @brief 注入帧钩子函数
- * @description 分割每一帧，计算 FPS 并发送到后台
+ * @brief 钩子函数，用于捕获 GPUAdapter 相关方法，递归调用内部 device 等等
  */
-// function installFrameHooks() {
-//   // 获取原始的 requestAnimationFrame 函数
-//   const originalRAF = window.requestAnimationFrame;
+function hookGPUAdapter() {
+  // hook requestAdapter
+  const originalRequestAdapter = navigator.gpu.requestAdapter;
+  navigator.gpu.requestAdapter = async function (options) {
+    try {
+      const adapter = await originalRequestAdapter.call(navigator.gpu, options);
+      recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
 
-//   window.requestAnimationFrame = function (callback) {
-//     return originalRAF(timestamp => {
+      if (adapter) {
+        // hook requestDevice
+        const originalRequestDevice = adapter.requestDevice;
+        adapter.requestDevice = async function (descriptor?: GPUDeviceDescriptor) {
+          try {
+            const device = await originalRequestDevice.call(adapter, descriptor);
+            recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);
+            // [hook device] !!!
+            GPUDeviceHook.hookDevice(device);
+            return device;
+          } catch (error) {
+            console.error('Error in requestDevice:', error);
+            throw error;
+          }
+        };
+      }
+      return adapter;
 
-//       // 检测 URL 变化
-//       if (lastUrl !== location.href) {
-//         lastUrl = location.href;
-//         frameCnt = 0;
-//         recoder.reset();
-//       }
-//       // fixme callback 可能发生变化
-
-//       let result: void;
-//       try {
-//         result = callback(timestamp);
-//       } catch (error) {
-//         console.error('Error in requestAnimationFrame callback:', error);
-//         throw error;
-//       }
-
-//       // 计算 FPS
-//       {
-//         const currentFrameTime = performance.now();
-//         if (frameCnt > 0) {
-//           const deltaTime = currentFrameTime - lastFrameTime;
-//           const fps = Math.round(1000 / deltaTime);
-//           // 向 dev 页面发生信息
-//           msg.sendMessage(MsgType.Window, "time: ", {frameCnt, deltaTime, fps});
-//         }
-
-//         frameCnt += 1;
-//         lastFrameTime = currentFrameTime;
-//       }
-
-//       // 截帧结束
-//       if (recoder.captureState.active) {
-//         msg.sendMessage( MsgType.Captures_end, "Capture frame finish!", {signal: false} );
-
-//         recoder.captureState.msg = false;
-//         recoder.captureState.active = false;
-//         recoder.setFrameEndTime(performance.now());
-//         // 输出数据
-//         msg.sendMessage(MsgType.Frame, "[frame]", JSON.stringify(recoder.outputFrame()));
-//         recoder.jsonLog();
-//         recoder.clear();
-//       }
-
-//       // 开始截帧
-//       if (recoder.captureState.msg) {
-//         console.log(`[main] Capture frame [id=${frameCnt}] `);
-//         recoder.captureState.active = true;
-//         recoder.setFrameStartTime(performance.now());
-//       }
-
-//       return result;
-//     });
-//   };
-// }
+    } catch (error) {
+      console.error('Error in requestAdapter:', error);
+      throw error;
+    }
+  };
+}
 
 
 /**
@@ -159,43 +129,6 @@ function hookGPUCanvasContext() {
 
   // fixme: getConfiguration(), unconfigure()
 }
-/**
- * @brief 钩子函数，用于捕获 GPUAdapter 相关方法，递归调用内部 device 等等
- */
-function hookGPUAdapter() {
-  // hook requestAdapter()
-  const originalRequestAdapter = navigator.gpu.requestAdapter;
-  navigator.gpu.requestAdapter = async function (options) {
-    try {
-      const adapter = await originalRequestAdapter.call(navigator.gpu, options);
-      recoder.trackAdapterOptions(options as GPURequestAdapterOptions);
-
-      if (adapter) {
-        // hook requestDevice()
-        const originalRequestDevice = adapter.requestDevice;
-        adapter.requestDevice = async function (descriptor?: GPUDeviceDescriptor) {
-          try {
-            const device = await originalRequestDevice.call(adapter, descriptor);
-            recoder.trackDeviceDesc(descriptor as GPUDeviceDescriptor);
-            // [hook device]
-            GPUDeviceHook.hookDevice(device);
-            return device;
-          } catch (error) {
-            console.error('Error in requestDevice:', error);
-            throw error;
-          }
-        };
-      }
-      return adapter;
-
-    } catch (error) {
-      console.error('Error in requestAdapter:', error);
-      throw error;
-    }
-  };
-}
-
-
 
 /**
  * @description 钩子函数，注意顺序
@@ -203,11 +136,10 @@ function hookGPUAdapter() {
 export function hookInit() {
   // 检查是否支持 WebGPU
   if (!navigator.gpu) {
-    throw new Error('WebGPU is not supported in your browser.');
+    throw new Error('[hook] WebGPU is not supported in your browser.');
   } else {
     msg.log(MsgLevel.level_1, '[hook] WebGPU is supported and injecting started.');
   }
-
 
   // 对 WebGPU 的关键 API 函数进行拦截
   hookGPUAdapter();

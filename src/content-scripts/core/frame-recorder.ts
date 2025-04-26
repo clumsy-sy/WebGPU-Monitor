@@ -5,9 +5,9 @@ import { APIRecorder } from "./api-recorder";
 
 
 export class FrameRecorder {
-  res = ResourceTracker.getInstance();
-  cmd = CommandTracker.getInstance();
-  api = APIRecorder.getInstance();
+  private res = ResourceTracker.getInstance();
+  private cmd = CommandTracker.getInstance();
+  private api = APIRecorder.getInstance();
 
   private msg = Msg.getInstance();
   /**

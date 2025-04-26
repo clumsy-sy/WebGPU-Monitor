@@ -1,6 +1,4 @@
-import { Msg, MsgLevel } from "../../../global/message";
-import { APIRecorder } from "../api-recorder";
-import { ResourceTracker } from "../resource-tracker";
+import { res, msg, cmd, APIrecorder, recoder, MsgLevel } from "./gpu-global"
 
 type GPUXXX = any;
 /**
@@ -8,9 +6,6 @@ type GPUXXX = any;
  * @description 钩子模板，用于拦截和记录 WebGPU 的 XXX API 的调用和销毁。
  */
 export class GPUXXXHook {
-  private static tracker = ResourceTracker.getInstance();
-  private static msg = Msg.getInstance();
-  private static APIrecorder = APIRecorder.getInstance();
 
   private static hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
   // 钩子入口方法
@@ -58,18 +53,18 @@ export class GPUXXXHook {
 
     // 创建包装器并替换方法
     instance[methodName] = function wrappedMethod(...args: any[]) {
-      GPUXXXHook.msg.log(MsgLevel.level_3, `[GPUxxx] ${methodName} hooked`);
+      msg.log(MsgLevel.level_3, `[GPUxxx] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
         // 记录资源
-        GPUXXXHook.tracker.track(result, args, methodName);
+        res.track(result, args, methodName);
         // 记录 API 调用
-        GPUXXXHook.APIrecorder.recordMethodCall(methodName, args);
+        APIrecorder.recordMethodCall(methodName, args);
         // 返回结果
         return result;
       } catch (error) {
-        GPUXXXHook.msg.error(`[GPUxxx] ${methodName} error: `, error);
+        msg.error(`[GPUxxx] ${methodName} error: `, error);
         throw error;
       } finally {
         // todo: 添加性能追踪逻辑
