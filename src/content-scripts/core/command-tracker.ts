@@ -1,4 +1,4 @@
-import { Utils, cmdInfo } from "../../global/utils";
+import { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord , cmdInfo } from "../../global/utils";
 import { Msg } from "../../global/message";
 import { ResourceTracker } from "./resource-tracker"
 // 资源库实例
@@ -10,37 +10,6 @@ enum PassCmdType {
   RenderPass = "RenderPass",
   ComputePass = "ComputePass",
 };
-
-interface EncoderCmd {
-  id: number,
-  type: 'GPUCommandEncoder',
-  descriptor: GPUCommandEncoderDescriptor | undefined;
-  cmds: (RenderPassRecord | ComputePassRecord | EncoderBaseCmd)[],
-  timeStamp: number
-}
-
-interface EncoderBaseCmd {
-  eid: number,
-  basetype: 'baseCmd';
-  type: string;
-  args: any[];
-}
-
-interface RenderPassRecord {
-  id: number;
-  eid: number;
-  basetype: 'GPURenderPass';
-  cmds: { type: string; args: any[] }[];
-  descriptor: GPURenderPassDescriptor | undefined;
-}
-
-interface ComputePassRecord {
-  id: number;
-  eid: number;
-  basetype: 'GPUComputePass';
-  cmds: { type: string; args: any[] }[];
-  descriptor: GPUComputePassDescriptor | undefined;
-}
 
 /**
  * @class RenderPassTracker

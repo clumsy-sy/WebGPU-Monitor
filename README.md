@@ -6,9 +6,12 @@ WebGPU Monitor 的目标一个用于 WebGPU 性能分析工具（类似于 Rende
 
 ## 运行
 
+
+目前还只有本地版本
+
 ```sh
 npm install
-npm run dev
+npm run build
 ```
 
 然后当作 chrome 插件即可
@@ -82,6 +85,36 @@ npm run dev
 ### 插件通信流程
 
 ```mermaid
+graph TD
+    A[网页加载 ] --> B[Chrome扩展注入脚本]
+    B --> C[运行脚本]
+    C --> |劫持WebGPU API|D[持续监控WebGPU活动捕获]
+    C --> |捕获帧| E[记录 Command]
+    
+    D --> |保持|F[记录 resource ]
+    E -->|帧完成| G[缓存绘制命令和资源]
+    F --> G
+
+    
+    H[点击 Capture 按钮] --> I[发送捕获信号] --> C
+    
+    subgraph 网页上下文
+        G --> J[序列化为JSON数据]
+        J --> M[通过Chrome Messaging传递]
+    end
+    
+    subgraph DevTools上下文
+        M --> N[接收序列化数据]
+        N --> O[解析并可视化]
+        O --> P[显示 Texture]
+    end
+    
+    C -->|监听URL变化| Q{检测到页面跳转}
+    Q -->|是| R[销毁旧页面监控]
+    R --> S[重新初始化注入]
+```
+
+```mermaid
 sequenceDiagram
   participant Browser
   participant ContentScript
@@ -97,6 +130,13 @@ sequenceDiagram
   chrome.runtime->>DevTools: Process & Display
 ```
 
+### 核心功能
+
+检测render pipeline分界，分析调用栈，相同代码多次绘制的对比
+实时热重载调试，可以修改任意资源，直接应用到页面中（类似修改，拖动，连接蓝图结点）
+展示各类型数据（模型、贴图输入、buffer、texture 输出）
+WebAssembly
+
 ### 细分
 
 -[ ] 改用 typescript 重写 拦劫函数
@@ -108,3 +148,11 @@ sequenceDiagram
 -[ ] texture viewer
 -[ ] shader viewer + editor
 -[ ] TimeLine / event Browser / API inspector / Resource Browser
+
+###
+
+1. 检测render pipeline分界，分析调用栈，Bson
+2. 完善捕获 API，展示界面
+3. 相同代码多次绘制的对比
+4. 实时热重载调试，可以修改任意资源，直接应用到页面中（类似修改，拖动，连接蓝图结点）
+5. 

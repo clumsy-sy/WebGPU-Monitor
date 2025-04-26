@@ -54,6 +54,38 @@ export interface ResInfo {
 };
 
 
+interface EncoderCmd {
+  id: number,
+  type: 'GPUCommandEncoder',
+  descriptor: GPUCommandEncoderDescriptor | undefined;
+  cmds: (RenderPassRecord | ComputePassRecord | EncoderBaseCmd)[],
+  timeStamp: number
+}
+
+interface EncoderBaseCmd {
+  eid: number,
+  basetype: 'baseCmd';
+  type: string;
+  args: any[];
+}
+
+interface RenderPassRecord {
+  id: number;
+  eid: number;
+  basetype: 'GPURenderPass';
+  cmds: { type: string; args: any[] }[];
+  descriptor: GPURenderPassDescriptor | undefined;
+}
+
+interface ComputePassRecord {
+  id: number;
+  eid: number;
+  basetype: 'GPUComputePass';
+  cmds: { type: string; args: any[] }[];
+  descriptor: GPUComputePassDescriptor | undefined;
+}
+
+
 let IDstart = 998244353;
 
 export const Utils = {
@@ -79,3 +111,6 @@ export const Utils = {
   },
 
 };
+
+
+export { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord };
