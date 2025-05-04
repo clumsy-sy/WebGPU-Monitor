@@ -20,7 +20,7 @@ export class TextureViewer {
   private canvas: HTMLCanvasElement;
   private select: HTMLSelectElement;
   private device: GPUDevice;
-  private textureInfos: TextureViewInfo[] = [];
+  private textureInfos: Array<TextureViewInfo> = [];
 
   constructor(
     canvasId: string,
@@ -40,6 +40,9 @@ export class TextureViewer {
     this.select.addEventListener('change', () => this.onSelectChange());
   }
 
+  addTextureView(view: TextureViewInfo) {
+    this.textureInfos.push(view);
+  }
   // 添加捕获的纹理信息
   addTextureViews(views: TextureViewInfo[]) {
     this.textureInfos.push(...views);
@@ -255,8 +258,6 @@ export class TextureViewer {
     const float = this.convertHalfToFloat(half);
     return Math.min(255, Math.max(0, Math.round(float * 255)));
 
-    // 方法2：HDR处理（根据需求实现）
-    // return toneMapping(float) * 255;
   }
 
   // Half float转换器（来自IEEE 754-2008标准）
@@ -287,121 +288,6 @@ export class TextureViewer {
     this.canvas.style.width = `${imageData.width}px`;
     this.canvas.style.height = `${imageData.height}px`;
   }
-
-  // private async handleDepthTexture(info: TextureViewInfo): Promise<ImageData> {
-  //   const { view, texture, width, height, format } = info;
-  
-  //   // 创建临时颜色纹理
-  //   const tempTexture = this.device.createTexture({
-  //     size: [width, height],
-  //     format: 'rgba8unorm',
-  //     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
-  //   });
-  
-  //   // 创建渲染管线
-  //   const pipeline = this.device.createRenderPipeline({
-  //     layout: 'auto',
-  //     vertex: {
-  //       module: this.device.createShaderModule({
-  //         code: `
-  //           @vertex
-  //           fn main(@builtin(vertex_index) vi : u32) -> @builtin(position) vec4f {
-  //             const pos = array(vec2f(-1,3), vec2f(-1,-1), vec2f(3,-1));
-  //             return vec4f(pos[vi], 0, 1);
-  //           }
-  //         `
-  //       }),
-  //       entryPoint: 'main'
-  //     },
-  //     fragment: {
-  //       module: this.device.createShaderModule({
-  //         code: `
-  //           @group(0) @binding(0) var depthTex: texture_depth_2d;
-            
-  //           @fragment 
-  //           fn main(@builtin(position) coord: vec4f) -> @location(0) vec4f {
-  //             let depth = textureLoad(depthTex, vec2u(coord.xy), 0);
-  //             let intensity = 1.0 - 1.0 / (1.0 + 10.0 * depth);
-  //             return vec4f(intensity, intensity, intensity, 1.0);
-  //           }
-  //         `
-  //       }),
-  //       entryPoint: 'main',
-  //       targets: [{ format: 'rgba8unorm' }]
-  //     },
-  //     depthStencil: {
-  //       format: format,
-  //       depthWriteEnabled: false,
-  //       depthCompare: 'always'
-  //     }
-  //   });
-  
-  //   // 执行渲染
-  //   const encoder = this.device.createCommandEncoder();
-  //   const pass = encoder.beginRenderPass({
-  //     colorAttachments: [{
-  //       view: tempTexture.createView(),
-  //       loadOp: 'clear',
-  //       clearValue: [0, 0, 0, 1],
-  //       storeOp: 'store'
-  //     }],
-  //     depthStencilAttachment: {
-  //       view: view, // 深度模板附件
-  //       depthClearValue: 1.0,
-  //       depthLoadOp: 'clear',
-  //       depthStoreOp: 'store',
-  //     }
-  //   });
-  
-  //   pass.setPipeline(pipeline);
-  //   pass.setBindGroup(0, this.device.createBindGroup({
-  //     layout: pipeline.getBindGroupLayout(0),
-  //     entries: [{
-  //       binding: 0,
-  //       resource: texture.createView()
-  //     }]
-  //   }));
-  //   pass.draw(3);
-  //   pass.end();
-  
-  //   const bytesPerPixel = FORMAT_BYTES_PER_PIXEL['rgba8unorm'] || 4;
-  //   const minBytesPerRow = width * bytesPerPixel;
-  //   const alignedBytesPerRow = Math.ceil(minBytesPerRow / 256) * 256;
-  //   const bufferSize = alignedBytesPerRow * height;
-
-  //   // 创建复制缓冲区
-  //   const buffer = this.device.createBuffer({
-  //     size: bufferSize,
-  //     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
-  //   });
-
-  
-  //   encoder.copyTextureToBuffer(
-  //     { texture: tempTexture },
-  //     { 
-  //       buffer,
-  //       bytesPerRow: alignedBytesPerRow,
-  //       rowsPerImage: height
-  //     },
-  //     [width, height]
-  //   );
-  
-  //   this.device.queue.submit([encoder.finish()]);
-  
-  //   // 读取数据
-  //   await buffer.mapAsync(GPUMapMode.READ);
-  //   const data = new Uint8Array(buffer.getMappedRange());
-  //   const copyData = new Uint8Array(data.buffer);
-  //   buffer.unmap();
-  //   tempTexture.destroy();
-  
-  //   return new ImageData(
-  //     new Uint8ClampedArray(copyData),
-  //     width,
-  //     height
-  //   );
-  // }
-  
   // 辅助方法：判断是否深度格式
   private isDepthFormat(format: GPUTextureFormat): boolean {
     return [

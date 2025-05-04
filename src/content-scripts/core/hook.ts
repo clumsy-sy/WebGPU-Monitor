@@ -109,22 +109,41 @@ function hookGPUCanvasContext() {
   // 获取 GPUCanvasConfiguration
   const originalCanvasConf = GPUCanvasContext.prototype.configure;
   GPUCanvasContext.prototype.configure = function (configuration) {
-    const ret = originalCanvasConf.call(this, configuration);
+    const result = originalCanvasConf.call(this, configuration);
     recoder.trackCanvasConf(configuration);
-    return ret;
-  };
+    res.track(this, {}, 'GPUCanvasContext');
 
-  // 获取当前 canvas纹理
-  const originalGetCurrentTexture = GPUCanvasContext.prototype.getCurrentTexture;
-  GPUCanvasContext.prototype.getCurrentTexture = function () {
-    const texture = originalGetCurrentTexture.call(this);
-    res.track(texture, {}, 'getCurrentTexture');
-    api.recordMethodCall('getCurrentTexture', []);
-    if (texture) {
-      const hook = new GPUTextureHook(texture);
-      hook.hookGPUTexture(texture);
+    if(this) {
+      // 获取当前 canvas纹理
+      // ！！！ getCurrentTexture 获取的 GPUYTexture 永远是同一个
+      const originalGetCurrentTexture = this.getCurrentTexture;
+      this.getCurrentTexture = function () {
+        const texture: GPUTexture = originalGetCurrentTexture.call(this);
+        if (recoder.captureState.active) {
+          const descriptor: GPUTextureDescriptor = 
+          {
+            size: [texture.width, texture.height],
+            mipLevelCount: texture.mipLevelCount,
+            sampleCount: texture.sampleCount,
+            dimension: texture.dimension,
+            format: texture.format,
+            usage: texture.usage,
+            label: texture.label
+          };
+          res.track(texture, {parent: this, descriptor}, 'getCurrentTexture');
+          api.recordMethodCall('getCurrentTexture', []);
+          if (texture) {
+            const hook = new GPUTextureHook(texture);
+            hook.hookGPUTexture(texture);
+          }
+        }
+        return texture;
+      };
+    } else{
+      throw new Error('[hook] GPUCanvasContext is null.');
     }
-    return texture;
+
+    return result;
   };
 
   // fixme: getConfiguration(), unconfigure()

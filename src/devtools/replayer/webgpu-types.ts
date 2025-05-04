@@ -21,7 +21,7 @@ interface FrameDataType {
   frameEndTime: number;
   frameWidth: number;
   frameHeight: number;
-  CanvasConfiguration: GPUCanvasConfiguration;
+  CanvasConfiguration: GPUCanvasConfiguration | {};
   AdapterOptions: GPURequestAdapterOptions;
   deviceDescriptor: GPUDeviceDescriptor;
   resources: Array<ResInfo>;

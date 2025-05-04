@@ -2,6 +2,7 @@ import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
 import { Msg, MsgLevel } from "../../global/message";
 import { APIRecorder } from "./api-recorder";
+import { FrameDataType } from "../../devtools/replayer/webgpu-types";
 
 
 export class FrameRecorder {
@@ -89,7 +90,7 @@ export class FrameRecorder {
   }
 
   outputFrame() {
-    let frame = {
+    let frame: FrameDataType = {
       frameID: this.curFrame,
       frameStartTime: this.frameStartTime,
       frameEndTime: this.frameEndTime,
@@ -99,7 +100,7 @@ export class FrameRecorder {
       AdapterOptions: this.AdapterOptions,
       deviceDescriptor: this.deviceDesc,
       // resource: this.res.getAllResources(),
-      resource: this.res.getAllResourcesValues(),
+      resources: this.res.getAllResourcesValues(),
       command: this.cmd.getAllCmds(),
       // api: this.api.getAllRecords(),
     };

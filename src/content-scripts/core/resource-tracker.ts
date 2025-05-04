@@ -34,14 +34,6 @@ export class ResourceTracker {
     let id: number = 0;
     let descCopy: any = {};
     switch (type) {
-      case 'pipeline':
-        id = Utils.genUniqueNumber();
-        if (desc.layout != 'auto') {
-          descCopy = this.replaceResourcesInDesc(desc);
-        }
-        desc.vertex.module = this.getResInfo(desc.vertex.module)?.id;
-        desc.fragment.module = this.getResInfo(desc.fragment.module)?.id;
-        break;
       case 'bufferData':
         if (this.resourceMap.has(desc.buffer)) {
           id = this.getResID(desc.buffer) as number;
@@ -69,6 +61,7 @@ export class ResourceTracker {
     }
     if(this.resourceMap.has(resource)) {
       console.warn(`[res]track : resource already exists`, resource);
+      // throw  new Error('[res]track : resource already exists');
     }
     // 跟踪资源
     if (id !== 0) {
@@ -93,7 +86,7 @@ export class ResourceTracker {
   
     // 处理数组
     if (Array.isArray(source)) {
-      return source.map((item, index) => 
+      return source.map(item => 
         this.deepCopy(item)
       ) as any;
     }

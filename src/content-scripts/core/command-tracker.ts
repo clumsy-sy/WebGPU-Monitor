@@ -34,6 +34,7 @@ export class RenderPassTracker {
   constructor(eid: number, desc?: GPURenderPassDescriptor) {
     this.startEid = eid;
     const descCopy = res.replaceResourcesInDesc(desc);
+    // console.log('descriptor', descCopy);
     this.descriptor = descCopy;
   }
 

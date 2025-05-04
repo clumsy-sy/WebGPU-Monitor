@@ -1,6 +1,7 @@
 import { res, msg, cmd, APIrecorder, recoder } from "./gpu-global"
 import { GPUCommandEncoderHook } from "./gpu-command-encoder";
 import { GPUTextureHook } from "./gpu-texture";
+import { GPUComputePipelineHook, GPURenderPipelineHook } from "./gpu-pipeline";
 
 /**
  * @class GPUDeviceHook
@@ -24,12 +25,12 @@ export class GPUDeviceHook {
       'createBindGroupLayout',
       // 'createBuffer',
       // 'createCommandEncoder',
-      'createComputePipeline',
+      // 'createComputePipeline',
       'createComputePipelineAsync',
       'createPipelineLayout',
       'createQuerySet',
       'createRenderBundleEncoder',
-      'createRenderPipeline',
+      // 'createRenderPipeline',
       'createRenderPipelineAsync',
       'createSampler',
       'createShaderModule',
@@ -49,9 +50,13 @@ export class GPUDeviceHook {
     this.hookTexture(device);
     // 'createCommandEncoder'
     this.hookCommandEncoder(device);
+    // pipeline
+    this.hookComputePipeline(device);
+    this.hookRenderPipeline(device);
 
     // queue
     this.hookGPUQueue(device.queue, []);
+
 
     return device;
   }
@@ -66,12 +71,12 @@ export class GPUDeviceHook {
     }
 
     // 创建包装器并替换方法
-    device[methodName] = function wrappedMethod(...args: any[]) {
+    device[methodName] = function wrappedMethod(descriptor: any) {
       // GPUDeviceHook.msg.log(`[GPUDevice] ${methodName}`);
       try {
-        const result = originalMethod.apply(this, args);
-        res.track(result, args, methodName);
-        APIrecorder.recordMethodCall(methodName, args);
+        const result = originalMethod.apply(this, [descriptor]);
+        res.track(result, descriptor, methodName);
+        APIrecorder.recordMethodCall(methodName, [descriptor]);
         return result;
       } catch (error) {
         msg.error(`[GPUDevice] ${methodName} error: `, error);
@@ -101,10 +106,10 @@ export class GPUDeviceHook {
           const originalGetMappedRange = buffer.getMappedRange;
           let mappedRange: ArrayBufferView | null = null;
 
-          buffer.getMappedRange = function (...args: any[]): ArrayBufferView {
-            const result = originalGetMappedRange.apply(this, args);
+          buffer.getMappedRange = function (descriptor: any): ArrayBufferView {
+            const result = originalGetMappedRange.apply(this, [descriptor]);
             mappedRange = result;
-            APIrecorder.recordMethodCall('getMappedRange', args);
+            APIrecorder.recordMethodCall('getMappedRange', [descriptor]);
             return result;
           };
 
@@ -209,6 +214,56 @@ export class GPUDeviceHook {
     this.hookedMethods.get(device)?.set('createCommandEncoder', originalMethod);
   }
 
+  private static hookComputePipeline(device: any) {
+    const originalMethod = device['createComputePipeline'];
+    device['createComputePipeline'] = function wrappedMethod(descriptor: any) {
+      try {
+        const result = originalMethod.apply(this, [descriptor]);
+        res.track(result, descriptor, 'createComputePipeline');
+        APIrecorder.recordMethodCall('createComputePipeline', [descriptor]);
+
+  
+        const hook = new GPUComputePipelineHook(result);
+        hook.hookGPUComputePipeline(result);
+        return result;
+      } catch (error) {
+        msg.error(`[GPUDevice] createComputePipeline error (descriptor: ${JSON.stringify(descriptor)})`, error);
+        throw error;
+      }
+    }
+
+    // 保存原始方法引用
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
+    }
+    this.hookedMethods.get(device)?.set('createComputePipeline', originalMethod);
+  }
+
+  private static hookRenderPipeline(device: any) {
+    const originalMethod = device['createRenderPipeline'];
+    device['createRenderPipeline'] = function wrappedMethod(descriptor: any) {
+      try {
+        const result = originalMethod.apply(this, [descriptor]);
+        res.track(result, descriptor, 'createRenderPipeline');
+        APIrecorder.recordMethodCall('createRenderPipeline', [descriptor]);
+
+  
+        const hook = new GPURenderPipelineHook(result);
+        hook.hookGPURenderPipeline(result);
+        return result;
+      } catch (error) {
+        msg.error(`[GPUDevice] createRenderPipeline error (descriptor: ${JSON.stringify(descriptor)})`, error);
+        throw error;
+      }
+    }
+
+    // 保存原始方法引用
+    if (!this.hookedMethods.has(device)) {
+      this.hookedMethods.set(device, new Map());
+    }
+    this.hookedMethods.get(device)?.set('createRenderPipeline', originalMethod);
+  }
+
   static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = []): T {
     const methodsToHook: string[] = [
       'copyExternalImageToTexture',
@@ -239,12 +294,12 @@ export class GPUDeviceHook {
     }
 
     // 创建包装器并替换方法
-    queue[methodName] = function wrappedMethod(...args: any[]) {
+    queue[methodName] = function wrappedMethod(descriptor: any) {
       try {
-        const result = originalMethod.apply(this, args);
+        const result = originalMethod.apply(this, [descriptor]);
         if (recoder.captureState.active) {
-          cmd.recordCmd(methodName, args);
-          APIrecorder.recordMethodCall(methodName, args);
+          cmd.recordCmd(methodName, descriptor);
+          APIrecorder.recordMethodCall(methodName, [descriptor]);
         }
         return result;
       } catch (error) {
