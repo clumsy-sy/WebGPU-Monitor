@@ -60,7 +60,7 @@ export class GPUCommandEncoderHook {
 
     // 创建包装器并替换方法
     cmdencoder[methodName] = function wrappedMethod(...args: any[]) {
-      msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
+      // msg.log(MsgLevel.level_3, `[GPUCommandEncoder] ${methodName} hooked`);
       try {
         // 执行原始方法并记录结果
         const result = originalMethod.apply(this, args);
@@ -91,7 +91,6 @@ export class GPUCommandEncoderHook {
     const originalMethod = cmdencoder['beginRenderPass'];
     cmdencoder['beginRenderPass'] = function wrappedMethod(descriptor: any) {
       try {
-        console.log('[GPUCommandEncoder] beginRenderPass hooked des = ', descriptor);
         const pass = originalMethod.apply(this, [descriptor]);
         // 记录 Cmd
         cmd.recoderPassCreate(
@@ -184,7 +183,6 @@ export class GPUCommandEncoderHook {
     if (cmdencoderMethods) {
       cmdencoderMethods.forEach((original, methodName) => {
         (cmdencoder as { [key: string]: any })[methodName] = original;
-        // msg.log(`[GPUCommandEncoder] ${methodName} unhooked`);
       });
       GPUCommandEncoderHook.hookedMethods.delete(cmdencoder);
     }

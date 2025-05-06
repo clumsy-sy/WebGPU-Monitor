@@ -63,7 +63,7 @@ export class FrameRecorder {
     this.frameEndTime = 0;
     this.frameWidth = 0;
     this.frameHeight = 0;
-    this.msg.log(MsgLevel.level_1, "FrameRecorder reset ------------------");
+    this.msg.log(MsgLevel.level_1, "[FrameRecorder] reset ------------------");
   }
 
   clear() {
@@ -74,7 +74,7 @@ export class FrameRecorder {
     this.frameHeight = 0;
     this.cmd.destory();
     this.cmd = CommandTracker.getInstance();
-    this.msg.log(MsgLevel.level_1, "FrameRecorder clear -----------------");
+    this.msg.log(MsgLevel.level_1, "[FrameRecorder] clear -----------------");
   }
 
   trackCanvasConf(conf: GPUCanvasConfiguration) {

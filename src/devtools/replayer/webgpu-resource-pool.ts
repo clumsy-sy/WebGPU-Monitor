@@ -96,7 +96,8 @@ export class WebGPUResourcePool {
         case 'createTexture':
           const TextureDescriptor: GPUTextureDescriptor = this.resolveRes(args) as GPUTextureDescriptor;
           // todo!  兼容
-          TextureDescriptor.usage = TextureDescriptor.usage | GPUTextureUsage.COPY_SRC;
+          // console.log("[res]createTexture : ", TextureDescriptor);
+          TextureDescriptor.usage |= GPUTextureUsage.COPY_SRC;
           resource = this.device!.createTexture(TextureDescriptor);
           break;
         case 'createView':

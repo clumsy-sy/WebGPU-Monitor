@@ -80,7 +80,7 @@ function portListener(port: chrome.runtime.Port) {
     } else if (receivedData.type === MsgType.Captures_end) {
       console.log("[panel] Message received in panel.js:", receivedData);
     } else if (receivedData.type === MsgType.Frame) {
-      console.log("[panel] Frame json:", receivedData.data);
+      // console.log("[panel] Frame json:", receivedData.data);
       const replayCanvas = document.getElementById('replay') as HTMLCanvasElement | null;
       if(replayCanvas && typeof receivedData.data === "string") {
         // const replayer = new WebGPUReproducer(replayCanvas);

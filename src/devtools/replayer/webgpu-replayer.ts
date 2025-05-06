@@ -3,7 +3,7 @@ import { FrameDataType } from "./webgpu-types";
 import { Msg, MsgLevel } from "../../global/message";
 import { WebGPUCmdPool } from "./webgpu-cmd-pool";
 import { ResInfo } from "../../global/utils";
-import { TextureViewer } from "../../devtools/core/TextureViewer";
+import { TextureViewer } from "./webgpu-texture-viewer";
 
 const ResPool = WebGPUResourcePool.getInstance();
 const CmdPool = WebGPUCmdPool.getInstance();
@@ -20,14 +20,11 @@ export class WebGPUReplayer{
     this.FrameJSONRawData = data;
     this.FrameData = JSON.parse(this.FrameJSONRawData) as FrameDataType;
     if(this.FrameData) {
+      msg.log(MsgLevel.level_1, "[panel] frameData init");
       console.log("[panel] frameData:", this.FrameData);
-      console.log("[panel] canvasWidth:", this.FrameData.frameWidth);
-      console.log("[panel] canvasHeight:", this.FrameData.frameHeight);
     } else {
       throw new Error('[replayer] frameData is null');
     }
-    msg.log(MsgLevel.level_1, "[panel] frameData init");
-    console.log("[panel] frameData : ", this.FrameData);
   }
 
   /**

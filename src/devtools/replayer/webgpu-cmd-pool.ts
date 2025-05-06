@@ -54,6 +54,11 @@ export class WebGPUCmdPool {
           console.log("[cmd]submit commandBuffer: ", resPool.getAllCmdBuffer());
           this.queue?.submit(resPool.getAllCmdBuffer());
           break;
+        default:
+          const arrArgs = resPool.resolveResArr((cmd as cmdInfo).args);
+          (this.queue as any)[cmd.type](...arrArgs);
+          console.warn("[cmd]not queue supported command: ", cmd.type);
+          break;
       }
     }
   }
@@ -108,7 +113,7 @@ export class WebGPUCmdPool {
     switch (cmd.type) {
       case 'finish':
         const commandbuffer = encoder.finish(resPool.resolveRes(cmd.args));
-        resPool.addCmdBuffer(commandbuffer);
+        console.log("[cmd]finish commandBuffer: ", commandbuffer);
         break;
       default:
         (encoder as any)[cmd.type](resPool.resolveRes(cmd.args));
