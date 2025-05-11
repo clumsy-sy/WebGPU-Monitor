@@ -1,5 +1,6 @@
 import { ResInfo, ResourceType } from "../../global/utils"
 import { TextureViewInfo } from "./webgpu-texture-viewer";
+// import { TextureViewInfo } from "../core/TextureViewer";
 
 
 export class WebGPUResourcePool {
@@ -18,6 +19,8 @@ export class WebGPUResourcePool {
 
   // WebGPU device
   private device: GPUDevice | null = null;
+  // 画布
+  private context: GPUCanvasContext | null = null;
   // 存储资源的映射表
   private resourceMap = new Map<number, any>();
   // 资源单
@@ -28,6 +31,10 @@ export class WebGPUResourcePool {
 
   // textureView
   private textureViews: Array<TextureViewInfo> = [];
+
+  setGPUContext(context: GPUCanvasContext) {
+      this.context = context;
+  }
 
   setDevice(device: GPUDevice) {
       this.device = device;
@@ -69,11 +76,16 @@ export class WebGPUResourcePool {
       let resource: any;
       switch (type) {
         case 'getCurrentTexture':
-          console.warn('[res]getCurrentTexture : not support compatibility');
-          const parent = args.parent;
-          const descriptor = args.descriptor;
-
-          resource = this.device?.createTexture(descriptor as GPUTextureDescriptor);
+          if(this.context) {
+            resource = this.context.getCurrentTexture();
+          } else {
+            throw new Error('[replayer] context is null');
+          }
+          // console.warn('[res]getCurrentTexture : not support compatibility');
+          // const parent = args.parent;
+          // const descriptor = args.descriptor;
+          // descriptor.usage |= GPUTextureUsage.COPY_SRC;
+          // resource = this.device?.createTexture(descriptor as GPUTextureDescriptor);
 
           break;
         case 'createBuffer':
@@ -91,7 +103,7 @@ export class WebGPUResourcePool {
           resource = buffer;
           break;
         case 'writeBufferData':
-          resource = new Uint8Array(args.data);
+          resource = new Uint8Array(datas);
           break;
         case 'createTexture':
           const TextureDescriptor: GPUTextureDescriptor = this.resolveRes(args) as GPUTextureDescriptor;

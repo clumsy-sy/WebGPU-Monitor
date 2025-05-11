@@ -1,3 +1,4 @@
+import { res } from "../../content-scripts/core/hooks/gpu-global";
 import { cmdInfo, ComputePassRecord, EncoderBaseCmd, EncoderCmd, RenderPassRecord, ResInfo, ResourceType } from "../../global/utils"
 import { WebGPUResourcePool } from "./webgpu-resource-pool";
 
@@ -75,10 +76,10 @@ export class WebGPUCmdPool {
     cmds.forEach((cmd) => {
       switch (cmd.basetype) {
         case 'GPURenderPass':
-          this.executeRenderPass(encoder, cmd as RenderPassRecord);
+          this.executeRenderPass(encoder, cmd.descriptor as GPURenderPassDescriptor, cmd as RenderPassRecord);
           break;
         case 'GPUComputePass':
-          this.executeComputePass(encoder, cmd as ComputePassRecord);
+          this.executeComputePass(encoder, cmd.descriptor as GPUComputePassDescriptor, cmd as ComputePassRecord);
           break;
         case 'baseCmd':
           this.executeBaseCmd(encoder, cmd as EncoderBaseCmd);
@@ -89,18 +90,20 @@ export class WebGPUCmdPool {
     })
   }
 
-  private executeRenderPass(encoder: GPUCommandEncoder, pass: RenderPassRecord) { 
-    const descriptor: GPURenderPassDescriptor = resPool.resolveRes(pass.descriptor);
+  private executeRenderPass(encoder: GPUCommandEncoder, passDescriptor: GPURenderPassDescriptor , pass: RenderPassRecord) { 
+    const descriptor: GPURenderPassDescriptor = resPool.resolveRes(passDescriptor);
     console.log("[cmd]RenderPass descriptor:", descriptor);
     const RenderPass = encoder.beginRenderPass(descriptor);
     const cmds = pass.cmds;
     cmds.forEach((cmd) => {
+      // console.log("[cmd]RenderPass command:", cmd.type);
+      // console.log("[cmd]RenderPass command args:", cmd.args);
       (RenderPass as any)[cmd.type](...resPool.resolveRes(cmd.args));
     })
   }
 
-  private executeComputePass(encoder: GPUCommandEncoder, pass: ComputePassRecord) { 
-    const descriptor: GPUComputePassDescriptor = resPool.resolveRes(pass.descriptor);
+  private executeComputePass(encoder: GPUCommandEncoder, passDescriptor: GPUComputePassDescriptor, pass: ComputePassRecord) { 
+    const descriptor: GPUComputePassDescriptor = resPool.resolveRes(passDescriptor);
     console.log("[cmd]ComputePass descriptor:", descriptor);
     const ComputePass = encoder.beginComputePass(descriptor);
     const cmds = pass.cmds;
@@ -114,6 +117,8 @@ export class WebGPUCmdPool {
       case 'finish':
         const commandbuffer = encoder.finish(resPool.resolveRes(cmd.args));
         console.log("[cmd]finish commandBuffer: ", commandbuffer);
+        // todo: fix me
+        resPool.addCmdBuffer(commandbuffer);
         break;
       default:
         (encoder as any)[cmd.type](resPool.resolveRes(cmd.args));

@@ -26,6 +26,9 @@ export class ResourceTracker {
   resourceMap = new Map<any, ResInfo>();
   resourceIDMap = new Map<number, any>();
 
+  BufferMap = new Map<number, GPUBuffer>();
+  TextureMap = new Map<number, GPUTexture>();
+
   /**
    * @brief 生成唯一 ID，跟踪资源。
    * @returns 
@@ -33,6 +36,7 @@ export class ResourceTracker {
   track(resource: any, desc: any, type = 'res') {
     let id: number = 0;
     let descCopy: any = {};
+    let infoData = null;
     switch (type) {
       case 'bufferData':
         if (this.resourceMap.has(desc.buffer)) {
@@ -54,19 +58,38 @@ export class ResourceTracker {
           desc: desc.desc
         }
         break;
+      case 'writeBufferData':
+        if(this.resourceMap.has(resource)) {
+          id = this.getResID(resource) as number;
+          const info = this.getResInfo(resource);
+          if(info){
+            info.data = desc.data;
+          }
+          return id;
+        } else {
+          id = Utils.genUniqueNumber();
+          descCopy = {};
+          infoData = desc.data;
+        }
+        break;
       default:
+        if(this.resourceMap.has(resource)) {
+          console.warn(`[res]track : resource already exists`, resource);
+          // throw  new Error('[res]track : resource already exists');
+        }
         id = Utils.genUniqueNumber();
         descCopy = this.replaceResourcesInDesc(desc);
         break;
     }
-    if(this.resourceMap.has(resource)) {
-      console.warn(`[res]track : resource already exists`, resource);
-      // throw  new Error('[res]track : resource already exists');
-    }
     // 跟踪资源
     if (id !== 0) {
       this.resourceIDMap.set(id, resource);
-      this.resourceMap.set(resource, { id, type, desc:descCopy });
+      if(infoData) {
+        // console.log("[res]track : writebufferData", infoData);
+        this.resourceMap.set(resource, { id, type, desc:descCopy, data:infoData });
+      } else {
+        this.resourceMap.set(resource, { id, type, desc:descCopy });
+      }
     } else {
       this.msg.error(`[res]track : resource no id`);
     }

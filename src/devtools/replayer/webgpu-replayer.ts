@@ -4,6 +4,7 @@ import { Msg, MsgLevel } from "../../global/message";
 import { WebGPUCmdPool } from "./webgpu-cmd-pool";
 import { ResInfo } from "../../global/utils";
 import { TextureViewer } from "./webgpu-texture-viewer";
+// import { TextureViewer } from "../core/TextureViewer";
 
 const ResPool = WebGPUResourcePool.getInstance();
 const CmdPool = WebGPUCmdPool.getInstance();
@@ -11,6 +12,7 @@ const msg = Msg.getInstance();
 
 export class WebGPUReplayer{
   private device!: GPUDevice;
+  private canvas!: HTMLCanvasElement;
   private FrameJSONRawData: string;
   private FrameData: FrameDataType;
 
@@ -43,15 +45,29 @@ export class WebGPUReplayer{
     }
     // 设置 WebGPU 设备
     ResPool.setDevice(this.device);
+    if (this.canvas) {
+      const context = this.canvas.getContext('webgpu') as GPUCanvasContext;
+      context.configure({
+        device: this.device,
+        format: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration).format,
+        alphaMode: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration).alphaMode,
+      });
+      ResPool.setGPUContext(context);
+    }
     CmdPool.setDevice(this.device);
   }
 
-  async replayFrame(canvasId?: string, selectId?: string) {
+  async replayFrame(mainCanvasId?: string, canvasId?: string, selectId?: string) {
     // replay start ----------
     msg.log(MsgLevel.level_1, "[replayer] replay start")
     // ---------------------
+    if(mainCanvasId) {
+      this.canvas = document.getElementById(mainCanvasId) as HTMLCanvasElement;
+      this.canvas.width = this.FrameData.frameWidth;
+      this.canvas.height = this.FrameData.frameHeight;
+    }
     // 初始化 WebGPU 设备
-    await this.initialize()
+    await this.initialize();
 
     // 初始化 TextureViewer
     if (canvasId && selectId) {

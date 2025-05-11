@@ -93,7 +93,7 @@ function portListener(port: chrome.runtime.Port) {
 
         // new 
         const replayer = new WebGPUReplayer(receivedData.data as string);
-        replayer.replayFrame('texture-viewer', 'texture-select').then(() => { 
+        replayer.replayFrame('replay', 'texture-viewer', 'texture-select').then(() => { 
           console.log("[panel] replayer finish");
         });
 

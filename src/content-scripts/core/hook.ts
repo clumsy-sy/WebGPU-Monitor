@@ -58,6 +58,8 @@ function frameRegistered() {
   // 开始截帧
   if (recoder.captureState.msg) {
     console.log(`[main] Capture frame [id=${frameCnt}] `);
+    // 提前获取 Buffer / Texture 信息
+
     recoder.captureState.active = true;
     recoder.setFrameStartTime(performance.now());
   }
@@ -120,6 +122,8 @@ function hookGPUCanvasContext() {
       this.getCurrentTexture = function () {
         const texture: GPUTexture = originalGetCurrentTexture.call(this);
         if (recoder.captureState.active) {
+          recoder.frameWidth = texture.width;
+          recoder.frameHeight = texture.height;
           const descriptor: GPUTextureDescriptor = 
           {
             size: [texture.width, texture.height],

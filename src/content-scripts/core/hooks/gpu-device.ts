@@ -321,7 +321,7 @@ export class GPUDeviceHook {
     queue['writeBuffer'] = function wrappedMethod(...args: any[]) {
       try {
         const result = originalMethod.apply(this, args);
-        if (recoder.captureState.active) {
+        // if (recoder.captureState.active) {
           const [buffer, bufferOffset, data, dataOffset, size] = args;
           // 1. 创建数据副本（避免直接引用可能被修改的原始数据）
           let dataCopy: ArrayBuffer;
@@ -355,7 +355,7 @@ export class GPUDeviceHook {
           ];
           cmd.recordCmd('writeBuffer', callMeta);
           APIrecorder.recordMethodCall('writeBuffer', args);
-        }
+        // }
         return result;
       } catch (error) {
         msg.error(`[GPUDeviceQueue] writeBuffer error: `, error);
