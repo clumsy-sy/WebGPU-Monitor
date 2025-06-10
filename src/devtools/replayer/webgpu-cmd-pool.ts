@@ -23,6 +23,11 @@ export class WebGPUCmdPool {
 
   private cmdArr:Array<(EncoderCmd | cmdInfo)> = [];
 
+  Dispose() {
+    this.device = null;
+    this.queue = null;
+    this.cmdArr.length = 0;
+  }
 
   setDevice(device: GPUDevice) {
     this.device = device;

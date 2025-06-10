@@ -32,6 +32,13 @@ export class WebGPUResourcePool {
   // textureView
   private textureViews: Array<TextureViewInfo> = [];
 
+  Dispose() { 
+    this.resourceMap.clear();
+    this.AllResources.clear();
+    this.cmdBuffer.length = 0;
+    this.textureViews.length = 0;
+  }
+
   setGPUContext(context: GPUCanvasContext) {
       this.context = context;
   }

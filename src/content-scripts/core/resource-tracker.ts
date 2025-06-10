@@ -208,6 +208,7 @@ export class ResourceTracker {
   }
   destory() {
     this.resourceMap.clear();
+    this.resourceIDMap.clear();
   }
 
 }

@@ -25,6 +25,7 @@ function frameRegistered() {
     // reset
     frameCnt = 0;
     recoder.reset();
+    msg.sendMessage(MsgType.Window, "Reset", {});
     msg.log(MsgLevel.level_1, "[main] URL changed, reset frame counter.");
   }
 

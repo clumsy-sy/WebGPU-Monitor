@@ -1,6 +1,8 @@
 import { WebGPUReproducer } from "./core/Replayer";
 import { TextureViewer } from "./core/TextureViewer";
+import { createFrameInfoPanel, displayFrameInfo } from "./frame-info-tree";
 import { WebGPUReplayer } from "./replayer/webgpu-replayer";
+import { FrameDataType } from "./replayer/webgpu-types";
 
 /**
  * @brief 信息类型
@@ -58,8 +60,37 @@ interface fpsType {
 // 定义接收消息的数据结构
 interface ReceivedMessage {
   type: string;
+  message: string;
   data: fpsType | string;
 }
+
+var replayer: WebGPUReplayer|null = null;
+
+function ReplayWithFrameData(data: string){
+  if(replayer == null) {
+    replayer = new WebGPUReplayer(data as string);
+    replayer.replayFrame('replay', 'texture-viewer', 'texture-select').then(() => { 
+      const framePanel = document.getElementById('frame-info-panel');
+      if (framePanel) {
+        framePanel.style.display = 'block';
+      }
+      displayFrameInfo(JSON.parse(data) as FrameDataType)
+      console.log("[panel] replayer finish");
+    });
+  } else {
+    replayer.Dispose();
+    replayer = new WebGPUReplayer(data as string);
+    replayer.replayFrame('replay', 'texture-viewer', 'texture-select').then(() => { 
+      const framePanel = document.getElementById('frame-info-panel');
+      if (framePanel) {
+        framePanel.style.display = 'block';
+      }
+      displayFrameInfo(JSON.parse(data) as FrameDataType)
+      console.log("[panel] replayer finish");
+    });
+  }
+}
+
 
 // 接收来自 content_script 的消息
 function portListener(port: chrome.runtime.Port) {
@@ -77,6 +108,14 @@ function portListener(port: chrome.runtime.Port) {
           fps.textContent = `当前帧率: ${fpsValue} FPS (${deltaTimeValue} ms / frame) `;
         }
       }
+      if (receivedData.message == "Reset")
+      {
+        console.log("[panel] reset");
+        if(replayer) {
+          replayer.Dispose();
+          replayer = null;
+        }
+      } 
     } else if (receivedData.type === MsgType.Captures_end) {
       console.log("[panel] Message received in panel.js:", receivedData);
     } else if (receivedData.type === MsgType.Frame) {
@@ -92,10 +131,12 @@ function portListener(port: chrome.runtime.Port) {
         // });
 
         // new 
-        const replayer = new WebGPUReplayer(receivedData.data as string);
-        replayer.replayFrame('replay', 'texture-viewer', 'texture-select').then(() => { 
-          console.log("[panel] replayer finish");
-        });
+        
+        ReplayWithFrameData(receivedData.data);
+        // const replayer = new WebGPUReplayer(receivedData.data as string);
+        // replayer.replayFrame('replay', 'texture-viewer', 'texture-select').then(() => { 
+        //   console.log("[panel] replayer finish");
+        // });
 
       }
   
@@ -105,6 +146,7 @@ function portListener(port: chrome.runtime.Port) {
     return true;
   });
 }
+
 
 // 确保页面加载完成后再执行相关操作
 document.addEventListener("DOMContentLoaded", () => {
@@ -124,4 +166,5 @@ document.addEventListener("DOMContentLoaded", () => {
   } else {
     console.error("Element with id 'getFrame' not found.");
   }
+
 });

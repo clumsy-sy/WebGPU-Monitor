@@ -29,6 +29,13 @@ export class WebGPUReplayer{
     }
   }
 
+  Dispose() {
+    ResPool.Dispose();
+    CmdPool.Dispose();
+    if(this.textureViewer)
+      this.textureViewer.Dispose();
+  }
+
   /**
    * 初始化 WebGPU 设备
    */
@@ -49,8 +56,9 @@ export class WebGPUReplayer{
       const context = this.canvas.getContext('webgpu') as GPUCanvasContext;
       context.configure({
         device: this.device,
-        format: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration).format,
-        alphaMode: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration).alphaMode,
+        format: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration)?.format,
+        usage: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration)?.usage,
+        alphaMode: (this.FrameData.CanvasConfiguration  as GPUCanvasConfiguration)?.alphaMode,
       });
       ResPool.setGPUContext(context);
     }

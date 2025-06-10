@@ -35,7 +35,6 @@ export class FrameRecorder {
   frameWidth: number = 0;
   frameHeight: number = 0;
 
-
   CanvasConf: GPUCanvasConfiguration | {} = {};
   AdapterOptions: GPURequestAdapterOptions | {} = {};
   deviceDesc: GPUDeviceDescriptor | {} = {};

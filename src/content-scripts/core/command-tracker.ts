@@ -426,6 +426,9 @@ export class CommandTracker {
         cmd.destory();
       }
     });
+    this.CmdQueue = [];
+    this.CmdMap.clear();
+    this.Eid = 0;
   }
 
 }

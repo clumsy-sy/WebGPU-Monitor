@@ -160,6 +160,15 @@ export class TextureViewer {
     this.select.addEventListener("change", () => this.onSelectChange());
   }
 
+  Dispose() { 
+    this.canvas = null as any;
+    this.select = null as any;
+    this.device = null as any;
+    this.textureInfos = [];
+    this.bufferPool = null as any;
+    this.textureCache = null as any;
+  }
+
   addTextureViews(views: TextureViewInfo[]) {
     this.textureInfos.push(...views);
     this.populateSelectOptions();

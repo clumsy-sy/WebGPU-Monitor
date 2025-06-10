@@ -266,7 +266,7 @@ export class GPUDeviceHook {
 
   static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = []): T {
     const methodsToHook: string[] = [
-      'copyExternalImageToTexture',
+      'copyExternalImageToTexture', // 需要当前帧结束后
       'onSubmittedWorkDone',
       'submit',
       // 'writeBuffer',
@@ -294,12 +294,12 @@ export class GPUDeviceHook {
     }
 
     // 创建包装器并替换方法
-    queue[methodName] = function wrappedMethod(descriptor: any) {
+    queue[methodName] = function wrappedMethod(...args: any[]) {
       try {
-        const result = originalMethod.apply(this, [descriptor]);
+        const result = originalMethod.apply(this, args);
         if (recoder.captureState.active) {
-          cmd.recordCmd(methodName, descriptor);
-          APIrecorder.recordMethodCall(methodName, [descriptor]);
+          cmd.recordCmd(methodName, args);
+          APIrecorder.recordMethodCall(methodName, args);
         }
         return result;
       } catch (error) {
@@ -316,6 +316,96 @@ export class GPUDeviceHook {
     this.hookedMethods.get(queue)?.set(methodName, originalMethod);
   }
 
+  // private static hookCopyExternalImageToTexture(device: any) {
+  //   const originalMethod = device['copyExternalImageToTexture'];
+  //   if (!originalMethod) {
+  //     throw new Error("Method copyExternalImageToTexture not found on GPUDevice");
+  //   }
+  
+  //   device['copyExternalImageToTexture'] = function wrappedMethod(
+  //     source: GPUCopyExternalImageSourceInfo,
+  //     destination: GPUCopyExternalImageDestInfo,
+  //     options: GPUExtent3DStrict
+  //   ) {
+  //     try {
+  //       // 调用原始方法执行图像复制
+  //       const result = originalMethod.apply(this, arguments);
+  
+  //       // 获取设备和队列
+  //       const device = this;
+  //       const queue = device.queue;
+  
+  //       // 创建缓冲区来读取纹理数据
+  //       const width = options?.width;
+  //       const height = options?.height;
+  //       const bufferSize = options[0] * options[1] * 4; // RGBA
+  //       const bufferDescriptor: GPUBufferDescriptor = {
+  //         size: bufferSize,
+  //         usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  //         mappedAtCreation: false,
+  //       };
+  //       const readbackBuffer = device.createBuffer(bufferDescriptor);
+  
+  //       // 创建命令编码器并复制纹理到缓冲区
+  //       const commandEncoder = device.createCommandEncoder();
+  //       commandEncoder.copyTextureToBuffer(
+  //         {
+  //           texture: destination.texture,
+  //           origin: destination.origin || { x: 0, y: 0, z: 0 },
+  //           aspect: destination.aspect || 'all',
+  //         },
+  //         {
+  //           buffer: readbackBuffer,
+  //           offset: 0,
+  //           bytesPerRow: options[0] * 4,
+  //         },
+  //         options
+  //       );
+  
+  //       // 提交命令并等待完成
+  //       const commands = commandEncoder.finish();
+  //       queue.submit([commands]);
+  
+  //       // 等待映射缓冲区并读取数据
+  //       (async () => {
+  //         await readbackBuffer.mapAsync(GPUMapMode.READ);
+  //         const arrayBuffer = readbackBuffer.getMappedRange(0, bufferSize);
+  //         const pixelData = new Uint8Array(arrayBuffer);
+  
+  //         // 存储数据副本到资源跟踪器
+  //         const dataId = res.track(pixelData.buffer, {
+  //           width: options,
+  //           height: options.height,
+  //           format: 'rgba8unorm',
+  //           data: [...pixelData],
+  //         }, 'textureData');
+  
+  //         // 记录 API 调用与数据 ID
+  //         APIrecorder.recordMethodCall('copyExternalImageToTexture', [
+  //           {
+  //             sourceWidth: source.width,
+  //             sourceHeight: source.height,
+  //             destinationTexture: destination.texture,
+  //             options,
+  //             dataId,
+  //           },
+  //         ]);
+  
+  //         readbackBuffer.unmap();
+  //       })();
+  
+  //       return result;
+  //     } catch (error) {
+  //       msg.error(`[GPUDevice] copyExternalImageToTexture error: `, error);
+  //       throw error;
+  //     }
+  //   };
+  
+  //   if (!this.hookedMethods.has(device)) {
+  //     this.hookedMethods.set(device, new Map());
+  //   }
+  //   this.hookedMethods.get(device)?.set('copyExternalImageToTexture', originalMethod);
+  // }
   private static hookQueueWriteBuffer(queue: any) {
     const originalMethod = queue['writeBuffer'];
     queue['writeBuffer'] = function wrappedMethod(...args: any[]) {
