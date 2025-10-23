@@ -192,7 +192,7 @@ export class TextureViewer {
   ): ImageData {
     switch (format) {
       case 'rgba8unorm':
-        return new ImageData(new Uint8ClampedArray(data.buffer), width, height);
+        return new ImageData(new Uint8ClampedArray(data), width, height);
   
       case 'bgra8unorm': {
         // 交换红蓝通道

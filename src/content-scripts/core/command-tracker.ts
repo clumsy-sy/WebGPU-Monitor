@@ -1,4 +1,4 @@
-import { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord , cmdInfo } from "../../global/utils";
+import { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord , cmdInfo, Utils } from "../../global/utils";
 import { Msg } from "../../global/message";
 import { ResourceTracker } from "./resource-tracker"
 // 资源库实例
@@ -336,10 +336,11 @@ export class CommandTracker {
 
   // todo sort cmd
   recordCmd(type: string, args: any[]) {
+    let id: number = Utils.genUniqueNumber();
     let eid: number = this.Eid++;
     let time: number = performance.now();
     const resArrCopy = res.replaceResourcesInArray(args);
-    const cmd: cmdInfo = { eid, type, args: resArrCopy, time }
+    const cmd: cmdInfo = { id, eid, type, args: resArrCopy, time }
     this.CmdQueue.push(cmd);
   }
 
@@ -432,3 +433,51 @@ export class CommandTracker {
   }
 
 }
+
+
+// interface CommandRecord {
+//   id: number;
+//   timestamp: number;
+//   type: 'encoder' | 'renderPass' | 'computePass' | 'command';
+//   parentId?: number;  // 指向父命令ID
+//   method: string;
+//   args: any[];
+//   frameId: number;
+// }
+
+// class CommandRecorder {
+//   private commands: CommandRecord[] = [];
+//   private nextId = 1;
+  
+//   recordCommand(
+//     type: CommandRecord['type'], 
+//     method: string, 
+//     args: any[], 
+//     parentId?: number,
+//     frameId: number
+//   ) {
+//     this.commands.push({
+//       id: this.nextId++,
+//       timestamp: performance.now(),
+//       type,
+//       parentId,
+//       method,
+//       args: this.processArgs(args),
+//       frameId
+//     });
+//   }
+  
+//   getCommandsForFrame(frameId: number): CommandRecord[] {
+//     return this.commands.filter(cmd => cmd.frameId === frameId);
+//   }
+  
+//   clear() {
+//     this.commands = [];
+//   }
+  
+//   private processArgs(args: any[]): any[] {
+//     return args.map(arg => 
+//       ResourceTracker.getInstance().getResourceId(arg) ?? arg
+//     );
+//   }
+// }

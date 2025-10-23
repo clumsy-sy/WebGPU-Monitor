@@ -55,7 +55,7 @@ export class GPUDeviceHook {
     this.hookRenderPipeline(device);
 
     // queue
-    this.hookGPUQueue(device.queue, []);
+    this.hookGPUQueue(device.queue, [], device);
 
 
     return device;
@@ -146,6 +146,9 @@ export class GPUDeviceHook {
     const originalMethod = device['createTexture'];
     device['createTexture'] = function wrappedMethod(descriptor: any) {
       try {
+        // 添加 COPY_DST 使用
+        (descriptor as GPUTextureDescriptor).usage |= GPUTextureUsage.COPY_SRC;
+
         // 调用原始方法创建纹理
         const texture = originalMethod.apply(this, [descriptor]);
   
@@ -264,9 +267,9 @@ export class GPUDeviceHook {
     this.hookedMethods.get(device)?.set('createRenderPipeline', originalMethod);
   }
 
-  static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = []): T {
+  static hookGPUQueue<T extends GPUQueue>(queue: T, methodsList: string[] = [], device: GPUDevice): T {
     const methodsToHook: string[] = [
-      'copyExternalImageToTexture', // 需要当前帧结束后
+      // 'copyExternalImageToTexture', // 需要当前帧结束后
       'onSubmittedWorkDone',
       'submit',
       // 'writeBuffer',
@@ -281,6 +284,7 @@ export class GPUDeviceHook {
 
     // 特殊处理
     this.hookQueueWriteBuffer(queue);
+    this.hookCopyExternalImageToTexture(queue, device);
 
     return queue
   }
@@ -314,6 +318,126 @@ export class GPUDeviceHook {
 
     // 保存原始方法引用
     this.hookedMethods.get(queue)?.set(methodName, originalMethod);
+  }
+
+  private static hookCopyExternalImageToTexture(queue: any, device: GPUDevice) {
+    const originalMethod = queue['copyExternalImageToTexture'];
+    if (!originalMethod) {
+      return; // 方法可能不存在
+    }
+
+    queue['copyExternalImageToTexture'] = function wrappedMethod(
+      source: any,
+      destination: any,
+      copySize: any
+    ) {
+      try {
+        // 调用原始方法执行图像复制
+        const result = originalMethod.apply(this, arguments);
+        
+        console.log("Try to copy external image to texture");
+        // 仅在捕获状态激活时进行纹理捕获
+        // if (recoder.captureState.active) {
+          // 确定纹理尺寸
+          let width, height, depth;
+          if (typeof copySize === 'object') {
+            width = copySize.width || copySize[0];
+            height = copySize.height || copySize[1];
+            depth = copySize.depth || copySize[2] || 1;
+          } else {
+            width = copySize;
+            height = copySize;
+            depth = 1;
+          }
+          
+          // 创建用于读取的缓冲区 (RGBA 格式)
+          const bufferSize = width * height * depth * 4;
+          const readbackBuffer = device.createBuffer({
+            size: bufferSize,
+            usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ
+          });
+
+          // 创建命令编码器并复制纹理到缓冲区
+          const commandEncoder = device.createCommandEncoder();
+          commandEncoder.copyTextureToBuffer(
+            {
+              texture: destination.texture,
+              origin: destination.origin || { x: 0, y: 0, z: 0 },
+              aspect: destination.aspect || 'all'
+            },
+            {
+              buffer: readbackBuffer,
+              offset: 0,
+              bytesPerRow: width * 4
+            },
+            { width, height, depth }
+          );
+
+          // 提交命令
+          const commands = commandEncoder.finish();
+          (queue as GPUQueue).submit([commands]);
+          // this.submit([commands]);
+          console.log("[GPUDeviceQueue] submit texture copy");
+          
+          // 等待命令执行完成
+          // const workDonePromise = this.onSubmittedWorkDone();
+          
+          // 在命令完成后读取数据
+          // workDonePromise.then(async () => {
+          //   try {
+          //     // 映射缓冲区并读取数据
+          //     await readbackBuffer.mapAsync(GPUMapMode.READ);
+          //     const arrayBuffer = readbackBuffer.getMappedRange();
+          //     const pixelData = new Uint8Array(arrayBuffer);
+              
+          //     // 存储数据副本到资源跟踪器
+          //     const textureData = {
+          //       width,
+          //       height,
+          //       depth,
+          //       format: 'rgba8unorm',
+          //       data: [...pixelData] // 复制数据，避免引用问题
+          //     };
+              
+          //     const dataId = res.track(pixelData.buffer, textureData, 'textureData');
+              
+          //     // 记录 API 调用与数据 ID
+          //     APIrecorder.recordMethodCall('copyExternalImageToTexture', [
+          //       {
+          //         sourceType: source.source instanceof HTMLCanvasElement ? 'canvas' : 
+          //                   source.source instanceof HTMLImageElement ? 'image' : 'unknown',
+          //         destinationTexture: destination.texture,
+          //         copySize,
+          //         dataId
+          //       }
+          //     ]);
+              
+          //     // 清理资源
+          //     readbackBuffer.unmap();
+          //     readbackBuffer.destroy();
+          //   } catch (error) {
+          //     msg.error(`[GPUDeviceQueue] Error capturing texture from copyExternalImageToTexture: `, error);
+          //     // 确保清理资源
+          //     readbackBuffer.destroy();
+          //   }
+          // }).catch((error: any) => {
+          //   msg.error(`[GPUDeviceQueue] Error waiting for work to complete: `, error);
+          //   // 确保清理资源
+          //   readbackBuffer.destroy();
+          // });
+        // }
+
+        return result;
+      } catch (error) {
+        msg.error(`[GPUDeviceQueue] copyExternalImageToTexture error: `, error);
+        throw error;
+      }
+    };
+
+    if (!this.hookedMethods.has(queue)) {
+      this.hookedMethods.set(queue, new Map());
+    }
+    this.hookedMethods.get(queue)?.set('copyExternalImageToTexture', originalMethod);
   }
 
   // private static hookCopyExternalImageToTexture(device: any) {
@@ -414,7 +538,7 @@ export class GPUDeviceHook {
         // if (recoder.captureState.active) {
           const [buffer, bufferOffset, data, dataOffset, size] = args;
           // 1. 创建数据副本（避免直接引用可能被修改的原始数据）
-          let dataCopy: ArrayBuffer;
+          let dataCopy: ArrayBufferLike;
           if (data instanceof ArrayBuffer) {
             dataCopy = data.slice(0); // 直接复制ArrayBuffer
           } else if (ArrayBuffer.isView(data)) { // 处理ArrayBufferView（如Uint8Array）
