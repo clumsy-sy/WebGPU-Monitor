@@ -7,9 +7,9 @@ import { res, msg, cmd, APIrecorder, recoder, MsgLevel } from "./gpu-global"
 export class GPUComputePipelineHook {
 
   private hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
-  private id = 0;
+  private id = "";
   constructor(pipeline: GPUComputePipeline){
-    this.id = res.getResID(pipeline) as number;
+    this.id = res.getResID(pipeline) as string;
   }
   // 钩子入口方法
   hookGPUComputePipeline<T extends GPUComputePipeline>(pipe: T, methodsList: string[] = []): T {
@@ -91,9 +91,9 @@ export class GPUComputePipelineHook {
 export class GPURenderPipelineHook {
 
   private hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
-  private id = 0;
+  private id = "";
   constructor(pipeline: GPURenderPipeline){
-    this.id = res.getResID(pipeline) as number;
+    this.id = res.getResID(pipeline) as string;
   }
   // 钩子入口方法
   hookGPURenderPipeline<T extends GPURenderPipeline>(pipe: T, methodsList: string[] = []): T {

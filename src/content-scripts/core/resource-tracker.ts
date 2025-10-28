@@ -1,4 +1,5 @@
-import { ResInfo, Utils } from "../../global/utils";
+import { ResInfo, WebGPUUtils } from "../../global/webgpu-types";
+
 import { Msg } from "../../global/message";
 
 /**
@@ -24,23 +25,23 @@ export class ResourceTracker {
 
   // 资源 MAP
   resourceMap = new Map<any, ResInfo>();
-  resourceIDMap = new Map<number, any>();
+  resourceIDMap = new Map<string, any>();
 
-  BufferMap = new Map<number, GPUBuffer>();
-  TextureMap = new Map<number, GPUTexture>();
+  BufferMap = new Map<string, GPUBuffer>();
+  TextureMap = new Map<string, GPUTexture>();
 
   /**
    * @brief 生成唯一 ID，跟踪资源。
    * @returns 
    */
   track(resource: any, desc: any, type = 'res') {
-    let id: number = 0;
+    let id: string = "";
     let descCopy: any = {};
     let infoData = null;
     switch (type) {
       case 'bufferData':
         if (this.resourceMap.has(desc.buffer)) {
-          id = this.getResID(desc.buffer) as number;
+          id = this.getResID(desc.buffer) as string;
           const bufferResInfo = this.getResInfo(desc.buffer);
           if (bufferResInfo) {
             bufferResInfo.data = desc.data;
@@ -52,7 +53,7 @@ export class ResourceTracker {
         }
         break;
       case 'createView':
-        id = Utils.genUniqueNumber();
+        id = WebGPUUtils.generateResourceId(type);
         descCopy = {
           parent: this.getResID(desc.parent),
           desc: desc.desc
@@ -60,14 +61,14 @@ export class ResourceTracker {
         break;
       case 'writeBufferData':
         if(this.resourceMap.has(resource)) {
-          id = this.getResID(resource) as number;
+          id = this.getResID(resource) as string;
           const info = this.getResInfo(resource);
           if(info){
             info.data = desc.data;
           }
           return id;
         } else {
-          id = Utils.genUniqueNumber();
+          id = WebGPUUtils.generateResourceId(type);
           descCopy = {};
           infoData = desc.data;
         }
@@ -77,18 +78,20 @@ export class ResourceTracker {
           console.warn(`[res]track : resource already exists`, resource);
           // throw  new Error('[res]track : resource already exists');
         }
-        id = Utils.genUniqueNumber();
+        id = WebGPUUtils.generateResourceId(type);
         descCopy = this.replaceResourcesInDesc(desc);
         break;
     }
     // 跟踪资源
-    if (id !== 0) {
+    if (id !== "") {
       this.resourceIDMap.set(id, resource);
       if(infoData) {
         // console.log("[res]track : writebufferData", infoData);
-        this.resourceMap.set(resource, { id, type, desc:descCopy, data:infoData });
+        this.resourceMap.set(resource, {
+          id, type, descriptor: descCopy, data: infoData,
+        });
       } else {
-        this.resourceMap.set(resource, { id, type, desc:descCopy });
+        this.resourceMap.set(resource, { id, type, descriptor:descCopy });
       }
     } else {
       this.msg.error(`[res]track : resource no id`);
@@ -184,7 +187,7 @@ export class ResourceTracker {
    * @param id 
    * @returns resource or undefined
    */
-  getResFromID(id: number) {
+  getResFromID(id: string) {
     if (this.resourceIDMap.has(id)) {
       return this.resourceIDMap.get(id);
     } else {
@@ -212,3 +215,45 @@ export class ResourceTracker {
   }
 
 }
+
+
+// class ResourceRegistry {
+//   private resources = new WeakMap<object, number>();
+//   private idToResource = new Map<number, WeakRef<object>>();
+//   private nextId = 1;
+//   private finalizationRegistry = new FinalizationRegistry((id: number) => {
+//     this.idToResource.delete(id);
+//   });
+
+//   register(resource: object, metadata: any): number {
+//     if (this.resources.has(resource)) {
+//       return this.resources.get(resource)!;
+//     }
+    
+//     const id = this.nextId++;
+//     this.resources.set(resource, id);
+//     this.idToResource.set(id, new WeakRef(resource));
+//     this.finalizationRegistry.register(resource, id);
+    
+//     // 只存储必要元数据，避免深度克隆
+//     this.metadata.set(id, {
+//       type: metadata.type,
+//       desc: this.simplifyDescriptor(metadata.desc)
+//     });
+    
+//     return id;
+//   }
+
+//   private simplifyDescriptor(desc: any): any {
+//     // 只保留关键信息，避免大型对象
+//     if (!desc) return desc;
+    
+//     return {
+//       ...desc,
+//       // 对于纹理等大型资源，只记录尺寸和格式
+//       size: desc.size ? (Array.isArray(desc.size) ? desc.size : [desc.size]) : undefined,
+//       format: desc.format,
+//       usage: desc.usage
+//     };
+//   }
+// }

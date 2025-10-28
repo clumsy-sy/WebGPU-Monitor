@@ -1,5 +1,5 @@
-import { cmdInfo, EncoderCmd, ResInfo } from "../global/utils";
-import { FrameDataType } from "./replayer/webgpu-types";
+import { cmdInfo, EncoderCmd, FrameDataType, ResInfo } from "../global/webgpu-types";
+// import { FrameDataType } from "./replayer/webgpu-types";
 
   // 树状结构渲染函数
 //   function renderTreeView(data: any, parentElement: HTMLElement, depth = 0) {

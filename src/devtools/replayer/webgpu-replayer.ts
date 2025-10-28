@@ -1,8 +1,8 @@
 import { WebGPUResourcePool} from "./webgpu-resource-pool"
-import { FrameDataType } from "./webgpu-types";
+import { FrameDataType } from "../../global/webgpu-types";
 import { Msg, MsgLevel } from "../../global/message";
 import { WebGPUCmdPool } from "./webgpu-cmd-pool";
-import { ResInfo } from "../../global/utils";
+import { ResInfo } from "../../global/webgpu-types";
 import { TextureViewer } from "./webgpu-texture-viewer";
 // import { TextureViewer } from "../core/TextureViewer";
 

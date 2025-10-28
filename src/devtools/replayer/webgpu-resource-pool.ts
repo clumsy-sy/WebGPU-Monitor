@@ -1,4 +1,4 @@
-import { ResInfo, ResourceType } from "../../global/utils"
+import { ResInfo, ResourceType } from "../../global/webgpu-types"
 import { TextureViewInfo } from "./webgpu-texture-viewer";
 // import { TextureViewInfo } from "../core/TextureViewer";
 
@@ -22,9 +22,9 @@ export class WebGPUResourcePool {
   // 画布
   private context: GPUCanvasContext | null = null;
   // 存储资源的映射表
-  private resourceMap = new Map<number, any>();
+  private resourceMap = new Map<string, any>();
   // 资源单
-  private AllResources = new Map<number, ResInfo>();
+  private AllResources = new Map<string, ResInfo>();
 
   // commandBuffer
   private cmdBuffer: Array<GPUCommandBuffer> = [];
@@ -53,11 +53,11 @@ export class WebGPUResourcePool {
     }
   }
 
-  set(id: number, resource: ResourceType) {
+  set(id: string, resource: ResourceType) {
     this.resourceMap.set(id, resource);
   }
 
-  get(id: number) {
+  get(id: string) {
     if(this.resourceMap.has(id)){
       return this.resourceMap.get(id);
     } else {
@@ -69,15 +69,15 @@ export class WebGPUResourcePool {
     return Array.from(this.resourceMap.values());
   }
 
-  storeResource(id: number, info: ResInfo) {
+  storeResource(id: string, info: ResInfo) {
     this.AllResources.set(id, info);
   }
 
   // 创建资源
-  createResource(id: number, type: string, info: ResInfo) : any{
+  createResource(id: string, type: string, info: ResInfo) : any{
     this.checkDevice();
     try {
-      const args = info.desc;
+      const args = info.descriptor;
       const datas = info.data;
 
       let resource: any;
@@ -189,7 +189,7 @@ export class WebGPUResourcePool {
   }
 
 
-  private checkAndCreateResource(value: number) : any{
+  private checkAndCreateResource(value: string) : any{
     if(this.resourceMap.has(value)) {
       return this.resourceMap.get(value);
     }
@@ -218,7 +218,7 @@ export class WebGPUResourcePool {
    * @returns 解析后的对象，包含真实的 WebGPU 资源引用
    */
   private resolveResourceFromID(obj: any): any {
-    if (typeof obj === 'number' && obj >= 998244353) {
+    if (typeof obj === 'string' && /^[^-]+-\d+-[^-]+$/.test(obj)) {
       return this.checkAndCreateResource(obj);
     }
     // 基本类型直接返回
@@ -236,7 +236,7 @@ export class WebGPUResourcePool {
     for (const key in obj) {
       if (obj.hasOwnProperty(key)) {
         const value = obj[key];
-        if (typeof value === 'number' && value >= 998244353){
+        if (typeof value === 'string' && /^[^-]+-\d+-[^-]+$/.test(value)){
           result[key] = this.checkAndCreateResource(value);
         } else {
           // 否则继续递归处理

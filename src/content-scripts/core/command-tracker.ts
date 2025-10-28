@@ -1,4 +1,4 @@
-import { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord , cmdInfo, Utils } from "../../global/utils";
+import { EncoderCmd, EncoderBaseCmd, RenderPassRecord, ComputePassRecord , cmdInfo, WebGPUUtils } from "../../global/webgpu-types";
 import { Msg } from "../../global/message";
 import { ResourceTracker } from "./resource-tracker"
 // 资源库实例
@@ -18,7 +18,7 @@ enum PassCmdType {
 export class RenderPassTracker {
 
   // renderpass id
-  PassID: number = 0;
+  PassID: string = "";
   // renderpass 类型
   descriptor: GPURenderPassDescriptor | undefined;
   // 命令队列
@@ -67,7 +67,7 @@ export class RenderPassTracker {
     return pass;
   }
 
-  setPassID(id: number) {
+  setPassID(id: string) {
     this.PassID = id;
   }
   getPassID() {
@@ -95,7 +95,7 @@ export class RenderPassTracker {
  */
 export class ComputePassTracker {
   // Computepass id
-  PassID: number = 0;
+  PassID: string = "";
   // Computepass 类型
   descriptor: GPUComputePassDescriptor | undefined;
   // 命令队列
@@ -143,7 +143,7 @@ export class ComputePassTracker {
     return pass;
   }
 
-  setPassID(id: number) {
+  setPassID(id: string) {
     this.PassID = id;
   }
   getPassID() {
@@ -336,7 +336,7 @@ export class CommandTracker {
 
   // todo sort cmd
   recordCmd(type: string, args: any[]) {
-    let id: number = Utils.genUniqueNumber();
+    let id: string = WebGPUUtils.generateCommandId();
     let eid: number = this.Eid++;
     let time: number = performance.now();
     const resArrCopy = res.replaceResourcesInArray(args);

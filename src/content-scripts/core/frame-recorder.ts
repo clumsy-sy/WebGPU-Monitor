@@ -2,7 +2,7 @@ import { ResourceTracker } from "./resource-tracker";
 import { CommandTracker } from "./command-tracker";
 import { Msg, MsgLevel } from "../../global/message";
 import { APIRecorder } from "./api-recorder";
-import { FrameDataType } from "../../devtools/replayer/webgpu-types";
+import { FrameDataType } from "../../global/webgpu-types";
 
 
 export class FrameRecorder {

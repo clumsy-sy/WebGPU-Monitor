@@ -1,5 +1,5 @@
 import { res } from "../../content-scripts/core/hooks/gpu-global";
-import { cmdInfo, ComputePassRecord, EncoderBaseCmd, EncoderCmd, RenderPassRecord, ResInfo, ResourceType } from "../../global/utils"
+import { cmdInfo, ComputePassRecord, EncoderBaseCmd, EncoderCmd, RenderPassRecord, ResInfo, ResourceType } from "../../global/webgpu-types"
 import { WebGPUResourcePool } from "./webgpu-resource-pool";
 
 const resPool = WebGPUResourcePool.getInstance();

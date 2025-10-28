@@ -7,10 +7,10 @@ import { res, msg, cmd, APIrecorder, recoder, MsgLevel } from "./gpu-global"
 export class GPUTextureHook {
 
   private hookedMethods: WeakMap<object, Map<string, Function>> = new WeakMap();
-  private id = 0;
+  private id = "";
 
   constructor(texture: GPUTexture) {
-    this.id = res.getResID(texture) as number;
+    this.id = res.getResID(texture) as string;
   }
   // 钩子入口方法
   hookGPUTexture<T extends GPUTexture>(texture: T, methodsList: string[] = []){

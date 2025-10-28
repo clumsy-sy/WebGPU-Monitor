@@ -2,8 +2,8 @@ import { WebGPUReproducer } from "./core/Replayer";
 import { TextureViewer } from "./core/TextureViewer";
 import { createFrameInfoPanel, displayFrameInfo } from "./frame-info-tree";
 import { WebGPUReplayer } from "./replayer/webgpu-replayer";
-import { FrameDataType } from "./replayer/webgpu-types";
-import { WebGPUDependencyGraph } from "./dependency-graph";
+import { FrameDataType } from "../global/webgpu-types";
+// import { WebGPUDependencyGraph } from "./dependency-graph";
 
 
 /**
@@ -194,10 +194,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // 初始化依赖关系图
-  let dependencyGraph: WebGPUDependencyGraph | null = null;
-  if (dependencyContainer) {
-    dependencyGraph = new WebGPUDependencyGraph('dependency-graph-container');
-  }
+  // let dependencyGraph: WebGPUDependencyGraph | null = null;
+  // if (dependencyContainer) {
+  //   dependencyGraph = new WebGPUDependencyGraph('dependency-graph-container');
+  // }
 
   // 当收到帧数据时更新图表
   port.onMessage.addListener((message: string) => {
@@ -212,7 +212,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       
       // 更新依赖图
-      dependencyGraph?.update(frameData);
+      // dependencyGraph?.update(frameData);
     }
   });
 
